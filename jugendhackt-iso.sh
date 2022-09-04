@@ -93,7 +93,7 @@ dd if="$UEFI_NTFS_FILE" bs="$(stat -c '%b' $UEFI_NTFS_FILE)" of="${USB}1"
 mkfs.ntfs -f -L "Jugend hackt Live" "${USB}2"
 mkfs.ext4 -F -L "casper-rw" "${USB}3"
 
-mount "${USB}3" "$USB_MOUNT"
+mount "${USB}2" "$USB_MOUNT"
 
 rsync -lr --exclude "casper/filesystem.squashfs" "$ISO_MOUNT"/* "$USB_MOUNT"
 
