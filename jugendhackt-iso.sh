@@ -58,6 +58,8 @@ PART_2_SIZE="$(du -s $ISO_MOUNT | cut -f1)"
 
 umount -f "$USB"* || true
 
+dd if=/dev/zero of="$USB" bs=512 count=8; sync
+
 (
 echo o
 echo y
