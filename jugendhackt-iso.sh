@@ -102,8 +102,8 @@ echo "Patching live environment..."
 TMP_FREE="$(df --output=iavail /tmp | tail -n1)"
 TMP_SIZE="$(df --output=itotal /tmp | tail -n1)"
 
-if (( $TMP_FREE < $PART_2_SIZE * 4 * 1024 )); then
-	mount -o remount,size="$(( $TMP_SIZE + $PART_2_SIZE * 4 * 1024 ))" "/tmp"
+if [[ (( $TMP_FREE < $PART_2_SIZE * 4 * 1024 )) && -z "$(mount | grep /tmp)" ]]; then
+	mount -o remount,size="$(( $TMP_SIZE + $PART_2_SIZE * 4 * 1024 ))" "/tmp" || true
 fi
 
 unsquashfs -d "$SQUASHFS_ROOT" "${ISO_MOUNT}/casper/filesystem.squashfs"
