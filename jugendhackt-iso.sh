@@ -58,7 +58,7 @@ PART_2_SIZE="$(du -s $ISO_MOUNT | cut -f1)"
 
 umount -f "$USB"* || true
 
-parted --script /dev/sda mklabel gpt; sync
+parted --script "$USB" mklabel gpt; sync
 
 (
 echo o
