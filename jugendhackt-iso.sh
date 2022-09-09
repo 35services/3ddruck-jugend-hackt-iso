@@ -58,7 +58,7 @@ PART_2_SIZE="$(du -s $ISO_MOUNT | cut -f1)"
 
 umount -f "$USB"* || true
 
-parted --script -f /dev/sda mklabel gpt; sync
+parted --script /dev/sda mklabel gpt; sync
 
 (
 echo o
@@ -105,7 +105,7 @@ TMP_FREE="$(df --output=iavail /tmp | tail -n1)"
 TMP_SIZE="$(df --output=itotal /tmp | tail -n1)"
 
 if (( $TMP_FREE < $PART_2_SIZE * 4 * 1024 )); then
-       if [[ -n "$(mount | grep /tmp)" ]]; then
+       if [[ -n "$(mount | grep "/tmp ")" ]]; then
 		mount -o remount,size="$(( $TMP_SIZE + $PART_2_SIZE * 8 * 1024 ))" "/tmp" || true
        fi
 fi
