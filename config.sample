@@ -4,7 +4,7 @@
 
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa"
 
-ADDITIONAL_PACKAGES="git vim nano"
+ADDITIONAL_PACKAGES="git vim nano firefox"
 
 ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch"
 
