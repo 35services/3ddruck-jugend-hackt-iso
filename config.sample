@@ -2,10 +2,12 @@
 #
 # This file configures the adjustments to the bootstraped live environment
 
+PERFORM_SYSTEM_UPGRADE=true
+
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa"
 
 ADDITIONAL_PACKAGES="git vim nano firefox"
 
-ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch"
+ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch org.fritzing.Fritzing org.godotengine.Godot org.zulip.Zulip"
 
 PACKAGE_REMOVAL="snapd"

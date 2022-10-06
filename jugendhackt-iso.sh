@@ -2,8 +2,6 @@
 
 set -e
 
-UEFI_NTFS_URL="https://github.com/pbatard/rufus/blob/master/res/uefi/uefi-ntfs.img?raw=true"
-
 USB=$1
 ISO=$2
 
@@ -16,12 +14,18 @@ if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" || -z "$ISO" ]]; then
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following p
-ackages are installed:\n\n- mkfs.ntfs (ntfs-3g)\n- rsync (rsync)\n- wget (wget)\n- parted (parted)\n- unsquashfs, mksquashfs (squashfs-tools)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- rsync (rsync)\n- wget (wget)\n- parted (parted)\n- unsquashfs, mksquashfs (squashfs-tools)\n- grub-install [targets i386-pc, x86_64-efi] (grub | grub-pc, grub-efi-amd64)"
 
-for COMMAND in "mkfs.ntfs rsync wget parted unsquashfs mksquashfs"; do
-	if [[ -x "$(command -v $COMMAND)" ]]; then
+for COMMAND in rsync wget parted gdisk unsquashfs mksquashfs grub-install; do
+	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
+		exit 1
+	fi
+done
+
+for TARGET in x86_64-efi i386-pc; do
+	if [[ ! -d "/usr/lib/grub/${TARGET}" ]]; then
+		echo "Grub target ${TARGET}${REQUIRED_LIBRARIES}"
 		exit 1
 	fi
 done
@@ -31,14 +35,16 @@ if [[ ! -f config ]]; then
 	exit 1
 fi
 
+source "./config"
+
 if [[ $EUID != 0 ]]; then
-	echo "Please do not run as root"
+	echo "Please run this script as root in order to access block devices."
 	exit 1
 fi
 
 echo "Analyzing source iso..."
 
-SOURCE_ISO_CHECKSUM="$(sha256sum $ISO | awk '{ print $1 }')"
+SOURCE_ISO_CHECKSUM="$(sha256sum "${ISO}" | awk '{ print $1 }')"
 CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
 
 IDENTIFIER="${SOURCE_ISO_CHECKSUM}-${CONFIG_CHECKSUM}"
@@ -46,20 +52,14 @@ IDENTIFIER="${SOURCE_ISO_CHECKSUM}-${CONFIG_CHECKSUM}"
 echo "Preparing temporary files..."
 
 ISO_MOUNT="$(mktemp -d)"
+ESP_MOUNT="$(mktemp -d)"
 USB_MOUNT="$(mktemp -d)"
 SQUASHFS_ROOT="$(mktemp -d)"
 
 mount -t iso9660 -o ro "${ISO}" "${ISO_MOUNT}"
 
-UEFI_NTFS_FILE="$(mktemp)"
-
-echo "Downloading UEFI_NTFS driver..."
-
-wget --output-document="${UEFI_NTFS_FILE}" "${UEFI_NTFS_URL}"
-
 echo "Partitioning disk..."
 
-PART_1_SIZE="$(stat -c '%s' "${UEFI_NTFS_FILE}")"
 PART_2_SIZE="$(du -s "${ISO_MOUNT}" | cut -f1)"
 
 umount -f "$USB"* || true
@@ -72,15 +72,21 @@ sync
 	echo y
 
 	echo n
+	echo 4
+	echo ""
+	echo "+1M"
+	echo "ef02"
+
+	echo n
 	echo 1
 	echo ""
-	echo "+${PART_1_SIZE}B"
+	echo "+512M"
 	echo "ef00"
 
 	echo n
 	echo 2
 	echo ""
-	echo "+$(($PART_2_SIZE + 1024))"K
+	echo "+$(($PART_2_SIZE * 2 + 1024))"K
 	echo "0700"
 
 	echo n
@@ -97,12 +103,12 @@ sync
 
 echo "Bootstrapping filesystems..."
 
-dd if="$UEFI_NTFS_FILE" bs="$(stat -c '%b' $UEFI_NTFS_FILE)" of="${USB}1"
-
-mkfs.ntfs -f -L "Jugend hackt Live" "${USB}2"
+yes | mkfs.msdos -n "ESP" "${USB}1"
+mkfs.ext4 -F -L "Jugend hackt Live" "${USB}2"
 mkfs.ext4 -F -L "casper-rw" "${USB}3"
 
-mount "${USB}2" "$USB_MOUNT"
+mount "${USB}1" "${ESP_MOUNT}"
+mount "${USB}2" "${USB_MOUNT}"
 
 rsync -lr --exclude "casper/filesystem.squashfs" "$ISO_MOUNT"/* "$USB_MOUNT"
 
@@ -131,39 +137,54 @@ else
 	done
 
 	mv "$SQUASHFS_ROOT/etc/resolv.conf" "$SQUASHFS_ROOT/etc/resolv.conf.backup"
-	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" > "${SQUASHFS_ROOT}/etc/resolv.conf"
+	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${SQUASHFS_ROOT}/etc/resolv.conf"
 
 	chroot "$SQUASHFS_ROOT" apt update -qq
 	chroot "$SQUASHFS_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
-	chroot "$SQUASHFS_ROOT" apt dist-upgrade -qq -y
+
+	if [[ "${PERFORM_SYSTEM_UPGRADE}" == "true" ]]; then
+		chroot "$SQUASHFS_ROOT" apt dist-upgrade -qq -y
+	fi
+
 	chroot "$SQUASHFS_ROOT" apt autoremove -qq -y
 	chroot "$SQUASHFS_ROOT" apt install -qq -y software-properties-common
-	chroot "$SQUASHFS_ROOT" add-apt-repository main -yy
-	chroot "$SQUASHFS_ROOT" add-apt-repository universe -yy
-	chroot "$SQUASHFS_ROOT" add-apt-repository multiverse -yy
+	chroot "$SQUASHFS_ROOT" add-apt-repository -y main
+	chroot "$SQUASHFS_ROOT" add-apt-repository -y universe
+	chroot "$SQUASHFS_ROOT" add-apt-repository -y multiverse
 	chroot "$SQUASHFS_ROOT" apt update -qq
-	# this line randomly fails...
-	chroot "$SQUASHFS_ROOT"	bash -c "apt install -qq -y flatpak gnome-software-plugin-flatpak || true"
+	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools extlinux
 
-	for PPA in $ADDITIONAL_REPOSITORIES; do
-		echo "Adding apt repository ${PPA}"
-		chroot "$SQUASHFS_ROOT" add-apt-repository "$PPA" -yy
-	done
+	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
+		for PPA in $ADDITIONAL_REPOSITORIES; do
+			echo "Adding apt repository ${PPA}"
+			chroot "$SQUASHFS_ROOT" add-apt-repository -y "$PPA"
+		done
+	else
+		echo "No additional apt repositories to add."
+	fi
 
-	chroot "$SQUASHFS_ROOT" apt install -qq -y "$ADDITIONAL_PACKAGES"
+	echo "Installing additional packages"
+	chroot "$SQUASHFS_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
 	chroot "$SQUASHFS_ROOT" apt clean
-	chroot "$SQUASHFS_ROOT" rm -rf /var/cache/apt/*
+	chroot "$SQUASHFS_ROOT" rm -rf /var/cache/apt/* || true
 
-	yes | chroot "$SQUASHFS_ROOT" flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-	for FLATPAK in $ADDITIONAL_FLATPAKS; do
-		yes | chroot "$SQUASHFS_ROOT" flatpak install flathub "$FLATPAK"
-	done
+	echo "Installing additional flatpaks"
+	if [[ -z "$ADDITIONAL_FLATPAKS" ]]; then
+		yes | chroot "$SQUASHFS_ROOT" flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+		for FLATPAK in $ADDITIONAL_FLATPAKS; do
+			yes | chroot "$SQUASHFS_ROOT" flatpak install flathub "$FLATPAK"
+		done
+	fi
 
 	mv "$SQUASHFS_ROOT/etc/resolv.conf.backup" "$SQUASHFS_ROOT/etc/resolv.conf"
 
 	for MOUNTPOINT in dev/pts dev sys proc; do
 		umount "${SQUASHFS_ROOT}/${MOUNTPOINT}"
 	done
+
+	if [[ ! -d /var/cache/jugendhackt-iso ]]; then
+		mkdir "/var/cache/jugendhackt-iso"
+	fi
 
 	mksquashfs "$SQUASHFS_ROOT" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
 	cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/filesystem.squashfs"
@@ -173,12 +194,32 @@ fi
 
 echo "Patching bootloader config..."
 
-CMDLINE_FILES="/boot/grub/loopback.cfg /boot/grub/grub.cfg /isolinux/menuentries.cfg"
+LINUX_TMP="$(mktemp -d)"
+
+unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot -/boot/grub
+
+rm "${USB_MOUNT}"/casper/vmlinu* "${USB_MOUNT}"/casper/initrd* 
+cp "${LINUX_TMP}/boot/vmlinuz" "${LINUX_TMP}/boot/initrd.img" "${USB_MOUNT}/casper/"
+
+rm -rf "${LINUX_TMP}"
+
+if [[ -d "${USB_MOUNT}/isolinux" ]]; then
+	rm -rf "${USB_MOUNT}/isolinux" 
+fi
+
+CMDLINE_FILES="/boot/grub/loopback.cfg /boot/grub/grub.cfg"
 
 for FILE in $CMDLINE_FILES; do
-	sed -i 's/---/persistent fsck.mode=skip ---/g' "${USB_MOUNT}${FILE}"
-	sed -i 's/(maybe|only)-ubiquity//g' "${USB_MOUNT}${FILE}"
+	if [[ -f "${USB_MOUNT}${FILE}" ]]; then
+		sed -i 's/---/boot=casper persistent fsck.mode=skip ---/g' "${USB_MOUNT}${FILE}"
+		sed -i 's/\(maybe\|only\)-ubiquity//g' "${USB_MOUNT}${FILE}"
+		sed -i 's/initrd\(=\|\s*\)[[:graph:]]*/initrd\1\/casper\/initrd.img/g' "${USB_MOUNT}${FILE}" 
+		sed -i 's/\(linux\|KERNEL\)\(\s*\)[[:graph:]]*/\1\2\/casper\/vmlinuz/g' "${USB_MOUNT}${FILE}"
+	fi
 done
+
+grub-install --target=i386-pc --boot-directory="${USB_MOUNT}/boot" "${USB}"
+grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="${USB_MOUNT}/boot" --efi-directory="${ESP_MOUNT}"
 
 echo "Syncing drive..."
 
@@ -187,13 +228,14 @@ sync "$USB"
 echo "Removing temporary files..."
 
 umount "$ISO_MOUNT"
+umount "$ESP_MOUNT"
 umount "$USB_MOUNT"
 
 rmdir "$ISO_MOUNT"
+rmdir "$ESP_MOUNT"
 rmdir "$USB_MOUNT"
 
 rm -rf "$SQUASHFS_ROOT"
-rm "$UEFI_NTFS_FILE"
 
 echo "Done."
 
