@@ -168,13 +168,11 @@ else
 	chroot "$SQUASHFS_ROOT" apt clean
 	chroot "$SQUASHFS_ROOT" rm -rf /var/cache/apt/* || true
 
-	echo "Installing additional flatpaks"
-	if [[ -z "$ADDITIONAL_FLATPAKS" ]]; then
-		yes | chroot "$SQUASHFS_ROOT" flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-		for FLATPAK in $ADDITIONAL_FLATPAKS; do
-			yes | chroot "$SQUASHFS_ROOT" flatpak install flathub "$FLATPAK"
-		done
-	fi
+	echo "Installing additional flatpaks..."
+	yes | chroot "$SQUASHFS_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+	for FLATPAK in $ADDITIONAL_FLATPAKS; do
+		chroot "$SQUASHFS_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
+	done
 
 	mv "$SQUASHFS_ROOT/etc/resolv.conf.backup" "$SQUASHFS_ROOT/etc/resolv.conf"
 
