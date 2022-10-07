@@ -196,7 +196,7 @@ cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/file
 
 echo "Patching bootloader config..."
 
-LINUX_TMP="$(mktemp -d)"
+LINUX_TMP="$(mktemp -u)"
 
 unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot -/boot/grub
 
