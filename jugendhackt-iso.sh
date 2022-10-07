@@ -101,7 +101,7 @@ else
 	chroot "$SQUASHFS_ROOT" add-apt-repository -y universe
 	chroot "$SQUASHFS_ROOT" add-apt-repository -y multiverse
 	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools extlinux
+	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit
 
 	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
