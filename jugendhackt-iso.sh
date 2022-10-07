@@ -25,7 +25,7 @@ done
 
 for TARGET in x86_64-efi i386-pc; do
 	if [[ ! -d "/usr/lib/grub/${TARGET}" ]]; then
-		echo "Grub target ${TARGET}${REQUIRED_LIBRARIES}"
+		echo -e "Grub target ${TARGET}${REQUIRED_LIBRARIES}"
 		exit 1
 	fi
 done
@@ -54,11 +54,9 @@ echo "Creating mount points..."
 ISO_MOUNT="$(mktemp -d)"
 ESP_MOUNT="$(mktemp -d)"
 USB_MOUNT="$(mktemp -d)"
-SQUASHFS_ROOT="$(mktemp -d)"
+SQUASHFS_ROOT="$(mktemp -u)"
 
 mount -t iso9660 -o ro "${ISO}" "${ISO_MOUNT}"
-
-echo "Partitioning disk..."
 
 ISO_SIZE="$(du -s "${ISO_MOUNT}" | cut -f1)"
 
@@ -81,7 +79,7 @@ else
 		fi
 	fi
 
-	unsquashfs -d "$SQUASHFS_ROOT" "${ISO_MOUNT}/casper/filesystem.squashfs"
+	unsquashfs -d "${SQUASHFS_ROOT}" "${ISO_MOUNT}/casper/filesystem.squashfs"
 
 	for MOUNTPOINT in dev dev/pts sys proc; do
 		mount -B "/$MOUNTPOINT" "${SQUASHFS_ROOT}/${MOUNTPOINT}"
