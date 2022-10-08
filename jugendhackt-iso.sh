@@ -101,7 +101,7 @@ else
 	chroot "$SQUASHFS_ROOT" add-apt-repository -y universe
 	chroot "$SQUASHFS_ROOT" add-apt-repository -y multiverse
 	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit
+	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales
 
 	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
@@ -111,6 +111,17 @@ else
 	else
 		echo "No additional apt repositories to add."
 	fi
+
+	if [[ -n "$KEYBOARD_LAYOUT" ]]; then
+		KEYBOARD_LAYOUT="us"
+	fi
+
+	if [[ -n "$LANGUAGE" ]]; then
+		LANGUAGE="en_US"
+	fi
+
+	sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${SQUASHFS_ROOT}/etc/default/keyboard"
+	chroot "$SQUASHFS_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
 
 	echo "Installing additional packages"
 	chroot "$SQUASHFS_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES

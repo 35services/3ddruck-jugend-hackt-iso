@@ -2,6 +2,10 @@
 #
 # This file configures the adjustments to the bootstraped live environment
 
+LANGUAGE="en_US"
+
+KEYBOARD_LAYOUT="us"
+
 PERFORM_SYSTEM_UPGRADE="true"
 
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa"
