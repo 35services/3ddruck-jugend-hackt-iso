@@ -112,11 +112,11 @@ else
 		echo "No additional apt repositories to add."
 	fi
 
-	if [[ -n "$KEYBOARD_LAYOUT" ]]; then
+	if [[ -z "$KEYBOARD_LAYOUT" ]]; then
 		KEYBOARD_LAYOUT="us"
 	fi
 
-	if [[ -n "$LANGUAGE" ]]; then
+	if [[ -z "$LANGUAGE" ]]; then
 		LANGUAGE="en_US"
 	fi
 
