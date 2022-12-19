@@ -10,7 +10,7 @@ PERFORM_SYSTEM_UPGRADE="true"
 
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa"
 
-ADDITIONAL_PACKAGES="git vim nano firefox"
+ADDITIONAL_PACKAGES="git vim nano firefox rtl8821ce-dkms android-sdk"
 
 ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch org.fritzing.Fritzing org.godotengine.Godot org.zulip.Zulip"
 

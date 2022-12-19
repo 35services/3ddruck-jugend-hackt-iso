@@ -14,18 +14,11 @@ if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" || -z "$ISO" ]]; then
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- rsync (rsync)\n- wget (wget)\n- parted (parted)\n- unsquashfs, mksquashfs (squashfs-tools)\n- grub-install [targets i386-pc, x86_64-efi] (grub | grub-pc, grub-efi-amd64)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- rsync (rsync)\n- wget (wget)\n- parted (parted)\n- unsquashfs, mksquashfs (squashfs-tools)"
 
-for COMMAND in rsync wget parted gdisk unsquashfs mksquashfs grub-install; do
+for COMMAND in rsync wget parted gdisk unsquashfs mksquashfs; do
 	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
-		exit 1
-	fi
-done
-
-for TARGET in x86_64-efi i386-pc; do
-	if [[ ! -d "/usr/lib/grub/${TARGET}" ]]; then
-		echo -e "Grub target ${TARGET}${REQUIRED_LIBRARIES}"
 		exit 1
 	fi
 done
@@ -52,7 +45,6 @@ IDENTIFIER="${SOURCE_ISO_CHECKSUM}-${CONFIG_CHECKSUM}"
 echo "Creating mount points..."
 
 ISO_MOUNT="$(mktemp -d)"
-ESP_MOUNT="$(mktemp -d)"
 USB_MOUNT="$(mktemp -d)"
 SQUASHFS_ROOT="$(mktemp -u)"
 
@@ -85,6 +77,9 @@ else
 		mount -B "/$MOUNTPOINT" "${SQUASHFS_ROOT}/${MOUNTPOINT}"
 	done
 
+	mkdir "${SQUASHFS_ROOT}/cdrom"
+	mkdir "${SQUASHFS_ROOT}/boot/efi"
+
 	mv "$SQUASHFS_ROOT/etc/resolv.conf" "$SQUASHFS_ROOT/etc/resolv.conf.backup"
 	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${SQUASHFS_ROOT}/etc/resolv.conf"
 
@@ -101,7 +96,7 @@ else
 	chroot "$SQUASHFS_ROOT" add-apt-repository -y universe
 	chroot "$SQUASHFS_ROOT" add-apt-repository -y multiverse
 	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales
+	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 
 	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
@@ -198,8 +193,9 @@ yes | mkfs.msdos -n "ESP" "${USB}1"
 mkfs.ext4 -F -L "Jugend hackt Live" "${USB}2"
 mkfs.ext4 -F -L "casper-rw" "${USB}3"
 
-mount "${USB}1" "${ESP_MOUNT}"
 mount "${USB}2" "${USB_MOUNT}"
+
+echo "Copying installation media"
 
 rsync -lr --exclude "casper/filesystem.squashfs" "$ISO_MOUNT"/* "$USB_MOUNT"
 
@@ -224,15 +220,39 @@ CMDLINE_FILES="/boot/grub/loopback.cfg /boot/grub/grub.cfg"
 
 for FILE in $CMDLINE_FILES; do
 	if [[ -f "${USB_MOUNT}${FILE}" ]]; then
-		sed -i 's/---/boot=casper persistent fsck.mode=skip ---/g' "${USB_MOUNT}${FILE}"
+		sed -i 's/---/boot=casper persistent fsck.mode=skip noprompt locale='"${LANGUAGE}.UTF-8"' keyb='"${KEYBOARD_LAYOUT}"'---/g' "${USB_MOUNT}${FILE}"
 		sed -i 's/\(maybe\|only\)-ubiquity//g' "${USB_MOUNT}${FILE}"
 		sed -i 's/initrd\(=\|\s*\)[[:graph:]]*/initrd\1\/casper\/initrd.img/g' "${USB_MOUNT}${FILE}"
 		sed -i 's/\(linux\|KERNEL\)\(\s*\)[[:graph:]]*/\1\2\/casper\/vmlinuz/g' "${USB_MOUNT}${FILE}"
 	fi
 done
 
-grub-install --target=i386-pc --boot-directory="${USB_MOUNT}/boot" "${USB}"
-grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="${USB_MOUNT}/boot" --efi-directory="${ESP_MOUNT}"
+echo "Installing grub"
+
+SQUASHFS_TMP="$(mktemp -d)"
+CDROM_TMP="${SQUASHFS_TMP}/cdrom"
+ESP_TMP="${SQUASHFS_TMP}/boot/efi"
+
+mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
+mount --mkdir "${USB}1" "${ESP_TMP}"
+mount --mkdir "${USB}2" "${CDROM_TMP}"
+
+for MOUNTPOINT in dev dev/pts sys proc; do
+	mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
+done
+
+chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}"
+chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
+
+for MOUNTPOINT in dev/pts dev sys proc; do
+	umount "${SQUASHFS_TMP}/${MOUNTPOINT}"
+done
+
+umount "${ESP_TMP}"
+umount "${CDROM_TMP}"
+umount "${SQUASHFS_TMP}"
+
+rmdir "${SQUASHFS_TMP}"
 
 echo "Syncing drive..."
 
@@ -241,11 +261,9 @@ sync "$USB"
 echo "Removing temporary files..."
 
 umount "$ISO_MOUNT"
-umount "$ESP_MOUNT"
 umount "$USB_MOUNT"
 
 rmdir "$ISO_MOUNT"
-rmdir "$ESP_MOUNT"
 rmdir "$USB_MOUNT"
 
 rm -rf "$SQUASHFS_ROOT"
