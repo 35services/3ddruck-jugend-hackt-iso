@@ -83,25 +83,30 @@ else
 	mv "$SQUASHFS_ROOT/etc/resolv.conf" "$SQUASHFS_ROOT/etc/resolv.conf.backup"
 	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${SQUASHFS_ROOT}/etc/resolv.conf"
 
-	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
+	run () {
+		( echo DEBIAN_FRONTEND=noninteractive PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games XDG_CONFIG_DIRS=/etc/xdg DEFAULT_XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share/:/usr/share/ DEFAULT_XDG_DATA_DIRS=/usr/local/share/:/usr/share/ ; echo ${@} ) | chroot "$SQUASHFS_ROOT" /bin/bash -l
+	}
+
+	# TODO fix zsys daemon
+	run apt update -qq
+	run apt purge -qq -y "$PACKAGE_REMOVAL"
 
 	if [[ "${PERFORM_SYSTEM_UPGRADE}" == "true" ]]; then
-		chroot "$SQUASHFS_ROOT" apt dist-upgrade -qq -y
+		run apt dist-upgrade -qq -y
 	fi
 
-	chroot "$SQUASHFS_ROOT" apt autoremove -qq -y
-	chroot "$SQUASHFS_ROOT" apt install -qq -y software-properties-common
-	chroot "$SQUASHFS_ROOT" add-apt-repository -y main
-	chroot "$SQUASHFS_ROOT" add-apt-repository -y universe
-	chroot "$SQUASHFS_ROOT" add-apt-repository -y multiverse
-	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
+	run apt autoremove -qq -y
+	run apt install -qq -y software-properties-common
+	run add-apt-repository -y main
+	run add-apt-repository -y universe
+	run add-apt-repository -y multiverse
+	run apt update -qq
+	run apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 
 	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
 			echo "Adding apt repository ${PPA}"
-			chroot "$SQUASHFS_ROOT" add-apt-repository -y "$PPA"
+			run add-apt-repository -y "$PPA"
 		done
 	else
 		echo "No additional apt repositories to add."
@@ -116,17 +121,17 @@ else
 	fi
 
 	sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${SQUASHFS_ROOT}/etc/default/keyboard"
-	chroot "$SQUASHFS_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
+	run /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
 
 	echo "Installing additional packages"
-	chroot "$SQUASHFS_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
-	chroot "$SQUASHFS_ROOT" apt clean
-	chroot "$SQUASHFS_ROOT" rm -rf /var/cache/apt/* || true
+	run apt-get install -qq -y $ADDITIONAL_PACKAGES
+	run apt clean
+	run rm -rf /var/cache/apt/* || true
 
 	echo "Installing additional flatpaks..."
-	yes | chroot "$SQUASHFS_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+	yes | run flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 	for FLATPAK in $ADDITIONAL_FLATPAKS; do
-		chroot "$SQUASHFS_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
+		run flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
 	done
 
 	mv "$SQUASHFS_ROOT/etc/resolv.conf.backup" "$SQUASHFS_ROOT/etc/resolv.conf"
@@ -241,8 +246,12 @@ for MOUNTPOINT in dev dev/pts sys proc; do
 	mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
 done
 
-chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}"
-chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
+run2 () {
+	( echo DEBIAN_FRONTEND=noninteractive PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games XDG_CONFIG_DIRS=/etc/xdg DEFAULT_XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share/:/usr/share/ DEFAULT_XDG_DATA_DIRS=/usr/local/share/:/usr/share/ ; echo ${@} ) | chroot "$SQUASHFS_TMP" /bin/bash -l
+}
+
+run2 /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}"
+run2 /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
 
 for MOUNTPOINT in dev/pts dev sys proc; do
 	umount "${SQUASHFS_TMP}/${MOUNTPOINT}"
