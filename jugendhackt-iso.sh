@@ -246,12 +246,8 @@ for MOUNTPOINT in dev dev/pts sys proc; do
 	mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
 done
 
-run2 () {
-	( echo DEBIAN_FRONTEND=noninteractive PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games XDG_CONFIG_DIRS=/etc/xdg DEFAULT_XDG_CONFIG_DIRS=/etc/xdg XDG_DATA_DIRS=/usr/local/share/:/usr/share/ DEFAULT_XDG_DATA_DIRS=/usr/local/share/:/usr/share/ ; echo ${@} ) | chroot "$SQUASHFS_TMP" /bin/bash -l
-}
-
-run2 /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}"
-run2 /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
+chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}"
+chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
 
 for MOUNTPOINT in dev/pts dev sys proc; do
 	umount "${SQUASHFS_TMP}/${MOUNTPOINT}"
