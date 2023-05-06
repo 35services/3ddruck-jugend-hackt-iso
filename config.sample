@@ -10,9 +10,9 @@ PERFORM_SYSTEM_UPGRADE="true"
 
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa"
 
-ADDITIONAL_PACKAGES="git vim nano firefox godot3 sonic-pi gimp android-sdk rtl8821ce-dkms android-sdk"
+ADDITIONAL_PACKAGES="git vim nano firefox godot3 gimp android-sdk rtl8821ce-dkms android-sdk"
 
-ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch org.godotengine.Godot com.tic80.TIC_80 org.processing.processingide org.fritzing.Fritzing org.zulip.Zulip"
+ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 org.processing.processingide org.fritzing.Fritzing org.zulip.Zulip"
 
 ADDITIONAL_PIP="pgzero thonny"
 
