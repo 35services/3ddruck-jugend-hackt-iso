@@ -237,9 +237,12 @@ SQUASHFS_TMP="$(mktemp -d)"
 CDROM_TMP="${SQUASHFS_TMP}/cdrom"
 ESP_TMP="${SQUASHFS_TMP}/boot/efi"
 
+mkdir -p "${ESP_TMP}" || true
+mkdir -p "${CDROM_TMP}" || true
+
 mount -o ro "${USB_MOUNT}/casper/minimal.squashfs" "${SQUASHFS_TMP}"
-mount --mkdir "${USB}1" "${ESP_TMP}"
-mount --mkdir "${USB}2" "${CDROM_TMP}"
+mount "${USB}1" "${ESP_TMP}"
+mount "${USB}2" "${CDROM_TMP}"
 
 for MOUNTPOINT in dev dev/pts sys proc; do
 	mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
