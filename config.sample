@@ -2,19 +2,19 @@
 #
 # This file configures the adjustments to the bootstraped live environment
 
+# irgendwie noch node.js draufkriegen
 LANGUAGE="de_DE"
 
 KEYBOARD_LAYOUT=de
 
 PERFORM_SYSTEM_UPGRADE="true"
 
-ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers"
+ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers ppa:canonical-kernel-team/proposed"
 
-ADDITIONAL_PACKAGES="git vim nano firefox godot3 gimp android-sdk rtl8821ce-dkms android-sdk"
+ADDITIONAL_PACKAGES="git vim nano firefox godot3 gimp android-sdk android-sdk nodejs npm"
 
-ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 org.processing.processingide org.fritzing.Fritzing org.zulip.Zulip"
+ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 org.processing.processingide org.fritzing.Fritzing org.zulip.Zulip org.inkscape.Inkscape org.chromium.Chromium"
 
-ADDITIONAL_PIP="pgzero thonny"
+ADDITIONAL_PIP="pgzero thonny requests Pillow tk scikit-learn beautifulsoup4 flask pandas"
 
 PACKAGE_REMOVAL="snapd"
-
