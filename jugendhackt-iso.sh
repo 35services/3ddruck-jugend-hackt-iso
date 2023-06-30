@@ -68,17 +68,12 @@ else
 	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
 	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
 
-	if [[ "${PERFORM_SYSTEM_UPGRADE}" == "true" ]]; then
-		chroot "$DEBOOTSTRAP_ROOT" apt dist-upgrade -qq -y
-	fi
-
 	chroot "$DEBOOTSTRAP_ROOT" apt autoremove -qq -y
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y software-properties-common
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y multiverse
 	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
-	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop-minimal language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 
 	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
@@ -89,6 +84,10 @@ else
 		echo "No additional apt repositories to add."
 	fi
 
+	echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
+
+	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop-minimal ubuntu-restricted-extras language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
+	
 	if [[ -z "$KEYBOARD_LAYOUT" ]]; then
 		KEYBOARD_LAYOUT="us"
 	fi

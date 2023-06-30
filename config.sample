@@ -2,12 +2,13 @@
 #
 # This file configures the adjustments to the bootstraped live environment
 
-# irgendwie noch node.js draufkriegen
+RELEASE_BASE="kinetic"
+
+RELEASE_MIRROR="http://archive.ubuntu.com/ubuntu"
+
 LANGUAGE="de_DE"
 
 KEYBOARD_LAYOUT=de
-
-PERFORM_SYSTEM_UPGRADE="true"
 
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers ppa:canonical-kernel-team/proposed"
 
