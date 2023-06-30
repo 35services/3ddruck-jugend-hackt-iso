@@ -3,20 +3,19 @@
 set -e
 
 USB=$1
-ISO=$2
 
-if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" || -z "$ISO" ]]; then
+if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" ]]; then
 	echo "Bootstraps a persistent Ubuntu-based live system on a USB stick"
 	echo ""
-	echo "jugendhackt-iso.sh <usb-device> <iso-file>"
+	echo "jugendhackt-iso.sh <usb-device>"
 	echo ""
 	echo "Author: The one with the braid <the-one@with-the-braid.cf>"
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- gdisk (gdisk)\n- rsync (rsync)\n- wget (wget)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n-rsync (rsync)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)"
 
-for COMMAND in rsync wget parted gdisk unsquashfs mksquashfs; do
+for COMMAND in debootstrap rsync gdisk parted mkfs.msdos unsquashfs mksquashfs; do
 	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
 		exit 1
@@ -35,22 +34,14 @@ if [[ $EUID != 0 ]]; then
 	exit 1
 fi
 
-echo "Analyzing source iso..."
-
-SOURCE_ISO_CHECKSUM="$(sha256sum "${ISO}" | awk '{ print $1 }')"
 CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
 
-IDENTIFIER="${SOURCE_ISO_CHECKSUM}-${CONFIG_CHECKSUM}"
+IDENTIFIER="${CONFIG_CHECKSUM}"
 
 echo "Creating mount points..."
 
-ISO_MOUNT="$(mktemp -d)"
 USB_MOUNT="$(mktemp -d)"
-SQUASHFS_ROOT="$(mktemp -u)"
-
-mount -t iso9660 -o ro "${ISO}" "${ISO_MOUNT}"
-
-ISO_SIZE="$(du -s "${ISO_MOUNT}" | cut -f1)"
+DEBOOTSTRAP_ROOT="/var/cache/jugendhackt-iso/build/${IDENTIFIER}"
 
 umount -f "$USB"* || true
 
@@ -60,48 +51,39 @@ if [[ -f "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" ]]; then
 
 else
 
-	echo "Patching live environment..."
+	echo "Bootstrapping live environment..."
 
-	TMP_FREE="$(df --output=iavail /tmp | tail -n1)"
-	TMP_SIZE="$(df --output=itotal /tmp | tail -n1)"
-
-	if (($TMP_FREE < $ISO_SIZE * 8 * 1024)); then
-		if [[ -n "$(mount | grep "/tmp ")" ]]; then
-			mount -o remount,size="$(($TMP_SIZE + $ISO_SIZE * 8 * 1024))" "/tmp" || true
-		fi
-	fi
-
-	unsquashfs -d "${SQUASHFS_ROOT}" "${ISO_MOUNT}/casper/minimal.squashfs"
+	debootstrap "$RELEASE_BASE" "${DEBOOTSTRAP_ROOT}" "$RELEASE_MIRROR"
 
 	for MOUNTPOINT in dev dev/pts sys proc; do
-		mount -B "/$MOUNTPOINT" "${SQUASHFS_ROOT}/${MOUNTPOINT}"
+		mount -B "/$MOUNTPOINT" "${DEBOOTSTRAP_ROOT}/${MOUNTPOINT}"
 	done
 
-	mkdir "${SQUASHFS_ROOT}/cdrom"
-	mkdir "${SQUASHFS_ROOT}/boot/efi"
+	mkdir "${DEBOOTSTRAP_ROOT}/cdrom"
+	mkdir "${DEBOOTSTRAP_ROOT}/boot/efi"
 
-	mv "$SQUASHFS_ROOT/etc/resolv.conf" "$SQUASHFS_ROOT/etc/resolv.conf.backup"
-	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${SQUASHFS_ROOT}/etc/resolv.conf"
+	mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf" "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup"
+	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
 
-	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
+	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
+	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
 
 	if [[ "${PERFORM_SYSTEM_UPGRADE}" == "true" ]]; then
-		chroot "$SQUASHFS_ROOT" apt dist-upgrade -qq -y
+		chroot "$DEBOOTSTRAP_ROOT" apt dist-upgrade -qq -y
 	fi
 
-	chroot "$SQUASHFS_ROOT" apt autoremove -qq -y
-	chroot "$SQUASHFS_ROOT" apt install -qq -y software-properties-common
-	chroot "$SQUASHFS_ROOT" add-apt-repository -y main
-	chroot "$SQUASHFS_ROOT" add-apt-repository -y universe
-	chroot "$SQUASHFS_ROOT" add-apt-repository -y multiverse
-	chroot "$SQUASHFS_ROOT" apt update -qq
-	chroot "$SQUASHFS_ROOT" apt install -qq -y --no-install-recommends flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
+	chroot "$DEBOOTSTRAP_ROOT" apt autoremove -qq -y
+	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y software-properties-common
+	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
+	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
+	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y multiverse
+	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
+	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop-minimal language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 
 	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
 			echo "Adding apt repository ${PPA}"
-			chroot "$SQUASHFS_ROOT" add-apt-repository -y "$PPA"
+			chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y "$PPA"
 		done
 	else
 		echo "No additional apt repositories to add."
@@ -115,38 +97,38 @@ else
 		LANGUAGE="en_US"
 	fi
 
-	sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${SQUASHFS_ROOT}/etc/default/keyboard"
-	chroot "$SQUASHFS_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
+	sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${DEBOOTSTRAP_ROOT}/etc/default/keyboard"
+	chroot "$DEBOOTSTRAP_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
 
 	echo "Installing additional packages"
-	chroot "$SQUASHFS_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
-	chroot "$SQUASHFS_ROOT" apt clean
-	chroot "$SQUASHFS_ROOT" rm -rf /var/cache/apt/* || true
+	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
+	chroot "$DEBOOTSTRAP_ROOT" apt clean
+	chroot "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
 
 	echo "Installing additional flatpaks..."
-	yes | chroot "$SQUASHFS_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+	yes | chroot "$DEBOOTSTRAP_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 	for FLATPAK in $ADDITIONAL_FLATPAKS; do
-		chroot "$SQUASHFS_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
+		chroot "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
 	done
 
-	mv "$SQUASHFS_ROOT/etc/resolv.conf.backup" "$SQUASHFS_ROOT/etc/resolv.conf"
+	mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup" "$DEBOOTSTRAP_ROOT/etc/resolv.conf"
 
 	for MOUNTPOINT in dev/pts dev sys proc; do
-		umount "${SQUASHFS_ROOT}/${MOUNTPOINT}"
+		umount "${DEBOOTSTRAP_ROOT}/${MOUNTPOINT}"
 	done
 
 	if [[ ! -d /var/cache/jugendhackt-iso ]]; then
 		mkdir "/var/cache/jugendhackt-iso"
 	fi
 
-	mksquashfs "$SQUASHFS_ROOT" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
+	mksquashfs "$DEBOOTSTRAP_ROOT" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
 	echo "Keeping squashfs cached at /var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs for later use. Remove in order to clean up space."
 
 fi
 
 SQUASHFS_SIZE="$(du -s "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" | cut -f1)"
 
-PART_2_SIZE="$(($ISO_SIZE + SQUASHFS_SIZE))"
+PART_2_SIZE="$((500000 + SQUASHFS_SIZE))"
 
 echo "Preparing temporary files..."
 
@@ -199,39 +181,52 @@ tune2fs -O ^metadata_csum_seed "${USB}3"
 
 mount "${USB}2" "${USB_MOUNT}"
 
-echo "Copying installation media"
+echo "Copying live media"
 
-rsync -lr --exclude "casper/minimal.squashfs" "$ISO_MOUNT"/* "$USB_MOUNT"
-
-cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/minimal.squashfs"
+mkdir "${USB_MOUNT}/casper"
+cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/filesystem.squashfs"
 
 echo "Patching bootloader config..."
 
 LINUX_TMP="$(mktemp -u)"
 
-unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot -/boot/grub
+unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot
 
-rm "${USB_MOUNT}"/casper/vmlinu* "${USB_MOUNT}"/casper/initrd*
 cp "${LINUX_TMP}/boot/vmlinuz" "${LINUX_TMP}/boot/initrd.img" "${USB_MOUNT}/casper/"
 
 rm -rf "${LINUX_TMP}"
 
-if [[ -d "${USB_MOUNT}/isolinux" ]]; then
-	rm -rf "${USB_MOUNT}/isolinux"
+echo "Installing grub"
+
+mkdir -p "${USB_MOUNT}/boot/grub" 
+cat <<EOF > "${USB_MOUNT}/boot/grub/grub.cfg"
+set timeout=30
+
+loadfont unicode
+
+set menu_color_normal=white/black
+set menu_color_highlight=black/light-gray
+
+menuentry "Try Ubuntu (persistent)" {
+	set gfxpayload=keep
+	linux	/casper/vmlinuz boot=casper persistent fsck.mode=skip noprompt locale="${LANGUAGE}.UTF-8" keyb="${KEYBOARD_LAYOUT}" quiet splash
+	initrd	/casper/initrd.img
+}
+grub_platform
+if [ "\$grub_platform" = "efi" ]; then
+menuentry 'Boot from next volume' {
+	exit 1
+}
+menuentry 'UEFI Firmware Settings' {
+	fwsetup
+}
+else
+menuentry 'Test memory' {
+	linux16 /boot/memtest86+x64.bin
+}
 fi
 
-CMDLINE_FILES="/boot/grub/loopback.cfg /boot/grub/grub.cfg"
-
-for FILE in $CMDLINE_FILES; do
-	if [[ -f "${USB_MOUNT}${FILE}" ]]; then
-		sed -i 's/---/boot=casper persistent fsck.mode=skip noprompt locale='"${LANGUAGE}.UTF-8"' keyb='"${KEYBOARD_LAYOUT}"'---/g' "${USB_MOUNT}${FILE}"
-		sed -i 's/\(maybe\|only\)-ubiquity//g' "${USB_MOUNT}${FILE}"
-		sed -i 's/initrd\(=\|\s*\)[[:graph:]]*/initrd\1\/casper\/initrd.img/g' "${USB_MOUNT}${FILE}"
-		sed -i 's/\(linux\|KERNEL\)\(\s*\)[[:graph:]]*/\1\2\/casper\/vmlinuz/g' "${USB_MOUNT}${FILE}"
-	fi
-done
-
-echo "Installing grub"
+EOF
 
 SQUASHFS_TMP="$(mktemp -d)"
 CDROM_TMP="${SQUASHFS_TMP}/cdrom"
@@ -240,7 +235,7 @@ ESP_TMP="${SQUASHFS_TMP}/boot/efi"
 mkdir -p "${ESP_TMP}" || true
 mkdir -p "${CDROM_TMP}" || true
 
-mount -o ro "${USB_MOUNT}/casper/minimal.squashfs" "${SQUASHFS_TMP}"
+mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
 mount "${USB}1" "${ESP_TMP}"
 mount "${USB}2" "${CDROM_TMP}"
 
@@ -259,7 +254,7 @@ umount "${ESP_TMP}"
 umount "${CDROM_TMP}"
 umount "${SQUASHFS_TMP}"
 
-rmdir "${SQUASHFS_TMP}"
+rm -rf "${SQUASHFS_TMP}"
 
 echo "Syncing drive..."
 
@@ -267,13 +262,11 @@ sync "$USB"
 
 echo "Removing temporary files..."
 
-umount "$ISO_MOUNT"
 umount "$USB_MOUNT"
 
-rmdir "$ISO_MOUNT"
 rmdir "$USB_MOUNT"
 
-rm -rf "$SQUASHFS_ROOT"
+rm -rf "$DEBOOTSTRAP_ROOT"
 
 echo "Done."
 

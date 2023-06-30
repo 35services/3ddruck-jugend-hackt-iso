@@ -3,7 +3,17 @@
 Bootstraps a persistent Ubuntu-based live system on a USB stick.
 
 ```shell
-jugendhackt-iso.sh <usb-device> <iso-file>
+## setup before first run
+
+# copy config.sample to config
+cp config.sample config
+# check, edit and adjust the config file to your needs (open it in an editor like nano)
+nano config
+
+## now create the sticks
+
+# replace <usb-device> with the device path of your USB drive, e.g. /dev/sdb
+jugendhackt-iso.sh <usb-device>
 ```
 
 ## Features
@@ -13,6 +23,7 @@ jugendhackt-iso.sh <usb-device> <iso-file>
 - patch installed APT and Flatpak packages
 - remove Snapd
 - cache patched system in order to speed up further USBs
+- supports Austrian Germen *<3 Jh Linz, love you*
 
 ## Legal
 
