@@ -64,15 +64,15 @@ else
 
 	mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf" "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup"
 	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
-
+	
 	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y software-properties-common
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y multiverse
-	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
+	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y restricted
 
-	if [[ -z "$ADDITIONAL_REPOSITORIES" ]]; then
+	if [[ ! -z "$ADDITIONAL_REPOSITORIES" ]]; then
 		for PPA in $ADDITIONAL_REPOSITORIES; do
 			echo "Adding apt repository ${PPA}"
 			chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y "$PPA"
@@ -81,7 +81,29 @@ else
 		echo "No additional apt repositories to add."
 	fi
 
+	# enabling source packages for advanced package search
+	for file in "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list" "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list.d/"*; do
+		sed -i '/deb-src/s/^# //' $file
+	done
+	
+	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
+
 	echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
+
+	# overwriting package source priorities for Firefox
+	cat <<EOF > "${DEBOOTSTRAP_ROOT}/etc/apt/preferences.d/mozillateam"
+Package: *
+Pin: release o=LP-PPA-mozillateam
+Pin-Priority: 100
+
+Package: firefox*
+Pin: release o=LP-PPA-mozillateam
+Pin-Priority: 1001
+
+Package: firefox*
+Pin: release o=Ubuntu
+Pin-Priority: -1
+EOF
 
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop ubuntu-restricted-extras language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 	
@@ -98,7 +120,7 @@ else
 
 	echo "Installing additional packages"
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
-	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
+	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y $PACKAGE_REMOVAL
 
 	chroot "$DEBOOTSTRAP_ROOT" apt autoremove -qq -y
 	chroot "$DEBOOTSTRAP_ROOT" apt clean
