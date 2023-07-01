@@ -13,9 +13,9 @@ if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" ]]; then
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n-rsync (rsync)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)"
 
-for COMMAND in debootstrap rsync gdisk parted mkfs.msdos unsquashfs mksquashfs; do
+for COMMAND in debootstrap gdisk parted mkfs.msdos unsquashfs mksquashfs; do
 	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
 		exit 1
@@ -86,7 +86,7 @@ else
 
 	echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
 
-	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop-minimal ubuntu-restricted-extras language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
+	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop ubuntu-restricted-extras language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 	
 	if [[ -z "$KEYBOARD_LAYOUT" ]]; then
 		KEYBOARD_LAYOUT="us"
@@ -132,7 +132,7 @@ PART_2_SIZE="$((500000 + SQUASHFS_SIZE))"
 echo "Preparing temporary files..."
 
 parted --script "$USB" mklabel gpt
-sync
+sync "$USB"
 
 (
 	echo o
@@ -166,7 +166,9 @@ sync
 	echo Y
 ) | sudo gdisk "$USB"
 
-sync
+parted --script "$USB" set 4 bios_grub on
+
+sync "$USB"
 
 echo "Bootstrapping filesystems..."
 
@@ -218,10 +220,6 @@ menuentry 'Boot from next volume' {
 }
 menuentry 'UEFI Firmware Settings' {
 	fwsetup
-}
-else
-menuentry 'Test memory' {
-	linux16 /boot/memtest86+x64.bin
 }
 fi
 
