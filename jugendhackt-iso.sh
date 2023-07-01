@@ -66,9 +66,6 @@ else
 	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
 
 	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
-	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
-
-	chroot "$DEBOOTSTRAP_ROOT" apt autoremove -qq -y
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y software-properties-common
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
@@ -101,6 +98,9 @@ else
 
 	echo "Installing additional packages"
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
+	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y "$PACKAGE_REMOVAL"
+
+	chroot "$DEBOOTSTRAP_ROOT" apt autoremove -qq -y
 	chroot "$DEBOOTSTRAP_ROOT" apt clean
 	chroot "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
 
