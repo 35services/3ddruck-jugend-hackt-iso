@@ -9,7 +9,7 @@ Bootstraps a persistent Ubuntu-based live system on a USB stick.
 - patch installed APT and Flatpak packages
 - remove Snapd
 - cache patched system in order to speed up further USBs
-- supports Austrian Germen *<3 Jh Linz, love you*
+- supports Austrian German *<3 Jh Linz, love you*
 
 ## Usage
 
