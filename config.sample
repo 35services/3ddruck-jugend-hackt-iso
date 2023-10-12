@@ -3,7 +3,7 @@
 # This file configures the adjustments to the bootstraped live environment
 
 # the Ubuntu release codename to use for bootstrap
-RELEASE_BASE="kinetic"
+RELEASE_BASE="mantic"
 
 # the Ubuntu archive mirror to use for bootstrap. Does not affect running system
 RELEASE_MIRROR="http://archive.ubuntu.com/ubuntu"
