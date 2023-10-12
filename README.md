@@ -22,6 +22,8 @@ Bootstraps a persistent Ubuntu-based live system on a USB stick.
 cp config.sample config
 # check, edit and adjust the config file to your needs (open it in an editor like nano)
 # 
+# E.g. for Events in Austria, change LANGUAGE to "de_AT" <3
+# 
 # IMPORTANT : check the latest Ubuntu *daily* release and adjust the RELEASE_BASE variable
 nano config
 
@@ -62,7 +64,7 @@ sudo ./jugendhackt-iso.sh <usb-device>
 
 ```
 
-## Build on aarch64 / Apple silicon using Docker buildx
+### Build on aarch64 / Apple silicon using Docker buildx
 
 To regular users using normal mainstream processors, this section is not relevant. The following hints only apply to users using Apple silicon (Apple M2, Apple M2) or other aarch64 devices (e.g. the ThinkPad X13s).
 
