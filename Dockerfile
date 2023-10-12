@@ -5,5 +5,6 @@ RUN apt-get install -y debootstrap gdisk parted dosfstools squashfs-tools
 
 COPY jugendhackt-iso.sh /jugendhackt-iso.sh
 
+WORKDIR /
 CMD /jugendhackt-iso.sh
 
