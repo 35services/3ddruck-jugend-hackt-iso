@@ -89,7 +89,7 @@ else
 	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
 
 	echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
-	echo "set passwd/user-default-groups adm cdrom sudo dip plugdev lpadmin sambashare operator dialout audio video debian-tor lxd" | debconf-communicate
+	echo "set passwd/user-default-groups adm cdrom sudo dip plugdev lpadmin sambashare operator dialout audio video debian-tor lxd" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
 
 	# overwriting package source priorities for Firefox
 	cat <<EOF > "${DEBOOTSTRAP_ROOT}/etc/apt/preferences.d/mozillateam"
