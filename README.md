@@ -24,7 +24,9 @@ cp config.sample config
 # 
 # E.g. for Events in Austria, change LANGUAGE to "de_AT" <3
 # 
-# IMPORTANT : check the latest Ubuntu *daily* release and adjust the RELEASE_BASE variable
+# IMPORTANT : check the latest Ubuntu *daily* release and adjust the RELEASE_BASE variable using the following command :
+# 
+# $ wget -qO- http://archive.ubuntu.com/ubuntu/dists/devel/Release | awk -F ': ' '$1 == "Codename" { print $2; exit }'
 nano config
 
 ```
