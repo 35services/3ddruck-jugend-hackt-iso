@@ -15,6 +15,7 @@ LANGUAGE="de_DE"
 KEYBOARD_LAYOUT="de"
 
 # the two-letter language code used for language pack installations, e.g. fr for language-pack-fr
+# Proudly introduced for Jh Zurich event <3
 LANGUAGE_PACK="de"
 
 # additional APT repositories to enable
