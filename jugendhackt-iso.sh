@@ -114,7 +114,11 @@ EOF
 		LANGUAGE="en_US"
 	fi
 
-	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop ubuntu-restricted-extras language-pack-${KEYBOARD_LAYOUT} language-pack-gnome-${KEYBOARD_LAYOUT} language-pack-${KEYBOARD_LAYOUT}-base language-pack-gnome-${KEYBOARD_LAYOUT}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
+	if [[ -z "$LANGUAGE_PACK" ]]; then
+		LANGUAGE_PACK="en"
+	fi
+
+	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop ubuntu-restricted-extras language-pack-${LANGUAGE_PACK} language-pack-gnome-${LANGUAGE_PACK} language-pack-${LANGUAGE_PACK}-base language-pack-gnome-${LANGUAGE_PACK}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 	
 	sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${DEBOOTSTRAP_ROOT}/etc/default/keyboard"
 	chroot "$DEBOOTSTRAP_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"

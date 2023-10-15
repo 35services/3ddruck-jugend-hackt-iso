@@ -14,6 +14,9 @@ LANGUAGE="de_DE"
 # the keyboard language to use
 KEYBOARD_LAYOUT="de"
 
+# the two-letter language code used for language pack installations, e.g. fr for language-pack-fr
+LANGUAGE_PACK="de"
+
 # additional APT repositories to enable
 ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers ppa:canonical-kernel-team/proposed"
 
