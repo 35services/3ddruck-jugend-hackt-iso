@@ -13,9 +13,9 @@ if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" ]]; then
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)"
 
-for COMMAND in debootstrap gdisk parted mkfs.msdos unsquashfs mksquashfs; do
+for COMMAND in debootstrap gdisk parted mkfs.msdos unsquashfs mksquashfs udevadm; do
 	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
 		exit 1
