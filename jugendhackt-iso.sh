@@ -193,7 +193,7 @@ sync "$USB"
 
 	echo w
 	echo Y
-) | sudo gdisk "$USB"
+) | gdisk "$USB"
 
 parted --script "$USB" set 4 bios_grub on
 
