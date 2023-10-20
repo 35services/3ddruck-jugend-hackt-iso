@@ -53,7 +53,7 @@ export USB_DRIVE=/dev/sdX
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
-    -v "$USB_DRIVE":"$USB_DRIVE" \
+    -v "/dev":"/dev" \
     jugendhackt-iso:latest /jugendhackt-iso.sh $USB_DRIVE
 ```
 
@@ -87,10 +87,10 @@ docker buildx build --platform linux/x86_64 -t jugendhackt-iso:latest .
 docker run \
     --platform linux/x86_64 \
     --privileged -ti --rm \
-    -v ./config:/config \
-    -v ./cache:/var/cache/jugendhackt-iso \
-    -v ./sda.img:/dev/sda jugendhackt-iso:latest \
-    /jugendhackt-iso.sh /dev/sda
+    -v "$(pwd)/config":"/config" \
+    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
+    -v "/dev":"/dev" jugendhackt-iso:latest \
+    /jugendhackt-iso.sh /dev/sdX
 ```
 
 ## Functionality
