@@ -41,7 +41,7 @@ IDENTIFIER="${CONFIG_CHECKSUM}"
 echo "Creating mount points..."
 
 USB_MOUNT="$(mktemp -d)"
-DEBOOTSTRAP_ROOT="/var/cache/jugendhackt-iso/build/${IDENTIFIER}"
+DEBOOTSTRAP_ROOT="$(mktemp -d)"
 
 umount -f "$USB"* || true
 
@@ -65,6 +65,8 @@ else
 	mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf" "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup"
 	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
 	
+	# create APT system user
+	chroot "$DEBOOTSTRAP_ROOT" adduser --force-badname --system --home /nonexistent --no-create-home --quiet _apt || true
 	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
 	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y software-properties-common
 	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y main

@@ -45,15 +45,16 @@ docker build -t jugendhackt-iso:latest .
 # alternatively, if you are familiar with Docker buildx, you can allso use the following command in order to use buildx to build the container
 # $ docker buildx build -t jugendhackt-iso:latest .
 
+
+# specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
+export USB_DRIVE=/dev/sdX
+
 # run the script with access to all the resources it needs
-
-export USB_DRIVE=/dev/sdX # specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
 docker run --privileged -ti --rm \
-    -v "$(pwd)/config":"/config" \ # we need the config in the container
-    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \ # we use this cache to peed up builds
-    -v "$USB_DRIVE":"$USB_DRIVE" \ # we need to pass over access to the USB drive we found
-    jugendhackt-iso:latest /jugendhackt-iso.sh $USB_DRIVE # run the script with the specified USB drive
-
+    -v "$(pwd)/config":"/config" \
+    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
+    -v "$USB_DRIVE":"$USB_DRIVE" \
+    jugendhackt-iso:latest /jugendhackt-iso.sh $USB_DRIVE
 ```
 
 ### Standalone using system libraries
@@ -82,8 +83,9 @@ docker run --privileged -d --name binfmt --rm tonistiigi/binfmt --install all
 docker buildx build --platform linux/x86_64 -t jugendhackt-iso:latest .
 
 # use the Docker image cross-arch to run the script
+# specify to use amd64 for execution
 docker run \
-    --platform linux/x86_64 \ # specify to use amd64 for execution
+    --platform linux/x86_64 \
     --privileged -ti --rm \
     -v ./config:/config \
     -v ./cache:/var/cache/jugendhackt-iso \
