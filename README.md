@@ -49,8 +49,8 @@ docker build -t jugendhackt-iso:latest .
 
 export USB_DRIVE=/dev/sdX # specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
 docker run --privileged -ti --rm \
-    -v ./config:/config \ # we need the config in the container
-    -v ./cache:/var/cache/jugendhackt-iso \ # we use this cache to peed up builds
+    -v "$(pwd)/config":"/config" \ # we need the config in the container
+    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \ # we use this cache to peed up builds
     -v "$USB_DRIVE":"$USB_DRIVE" \ # we need to pass over access to the USB drive we found
     jugendhackt-iso:latest /jugendhackt-iso.sh $USB_DRIVE # run the script with the specified USB drive
 
