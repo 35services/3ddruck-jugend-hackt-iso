@@ -10,15 +10,16 @@ Bootstraps a persistent Ubuntu-based live system on a USB stick.
 - remove Snapd
 - cache patched system in order to speed up further USBs
 - supports Austrian German *<3 Jh Linz, love you*
+- supports Swiss keyboard layout *<3 Jh Zurich, love you*
 
 ## Usage
 
-### Prepare the confuguration
+### Prepare the configuration
 
 ```shell
 ## setup before first run
 
-# copy config.sample to config
+# copy config.sample to config in the same directory
 cp config.sample config
 # check, edit and adjust the config file to your needs (open it in an editor like nano)
 # 
@@ -39,13 +40,6 @@ nano config
 # e.g. on Ubuntu, execute : 
 # $ sudo apt install docker.io
 
-# build the helper Docker image containing all the toolchain
-docker build -t jugendhackt-iso:latest .
-
-# alternatively, if you are familiar with Docker buildx, you can allso use the following command in order to use buildx to build the container
-# $ docker buildx build -t jugendhackt-iso:latest .
-
-
 # specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
 export USB_DRIVE=/dev/sdX
 
@@ -54,7 +48,8 @@ docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     -v "/dev":"/dev" \
-    jugendhackt-iso:latest /jugendhackt-iso.sh $USB_DRIVE
+    registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+    /jugendhackt-iso.sh $USB_DRIVE
 ```
 
 ### Standalone using system libraries
@@ -67,31 +62,9 @@ sudo ./jugendhackt-iso.sh <usb-device>
 
 ```
 
-### Build on aarch64 / Apple silicon using Docker buildx
+### Build on aarch64 / Apple silicon / Raspberry Pi
 
-To regular users using normal mainstream processors, this section is not relevant. The following hints only apply to users using Apple silicon (Apple M2, Apple M2) or other aarch64 devices (e.g. the ThinkPad X13s).
-
-The Dockerfile easily builds using [docker buildx](https://github.com/docker/buildx) which supports cross-arch builds. I personally develop on a Snapdragon 8cx Gen 3, and apart from som performance loss, it works very well.
-
-Please follow the docs of Docker buildx and install it.
-
-```shell
-# install QEMU binfmt for cross-arch execution
-docker run --privileged -d --name binfmt --rm tonistiigi/binfmt --install all
-
-# build the Docker conainer for amd64
-docker buildx build --platform linux/x86_64 -t jugendhackt-iso:latest .
-
-# use the Docker image cross-arch to run the script
-# specify to use amd64 for execution
-docker run \
-    --platform linux/x86_64 \
-    --privileged -ti --rm \
-    -v "$(pwd)/config":"/config" \
-    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
-    -v "/dev":"/dev" jugendhackt-iso:latest \
-    /jugendhackt-iso.sh /dev/sdX
-```
+As of now, it's not possible to build on aarch64 since we need to execute native binaries for amd64 in order to build the sticks for amd64. My past attempts using qemu-binfmt were not successful.
 
 ## Functionality
 
