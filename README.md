@@ -40,16 +40,56 @@ nano config
 # e.g. on Ubuntu, execute : 
 # $ sudo apt install docker.io
 
+# once create a build cache for the current configuration
+docker run --privileged -ti --rm \
+    -v "$(pwd)/config":"/config" \
+    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
+    registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+    /jugendhackt-iso.sh build
+
 # specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
 export USB_DRIVE=/dev/sdX
 
-# run the script with access to all the resources it needs
+# run the script with access to all the resources it needs and flash the image onto the USB drive
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     -v "/dev":"/dev" \
     registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
-    /jugendhackt-iso.sh $USB_DRIVE
+    /jugendhackt-iso.sh flash $USB_DRIVE
+```
+
+### Flash multiple sticks at once using Docker
+
+```shell
+# pull the most recent docker image
+docker pull registry.gitlab.com/jugendhackt/jugendhackt-iso:main
+
+# once build the cache
+docker run --privileged -ti --rm \
+    -v "$(pwd)/config":"/config" \
+    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
+    registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+    /jugendhackt-iso.sh build
+
+# flash image onto all USB drives
+# IMPARTANT: replace the list of /dev/sdX with all the drives you want to flash
+for USB_DRIVE in /dev/sdb /dev/sdc /dev/sdd /dev/sdN; do
+    docker run --privileged -d --rm \
+        -v "$(pwd)/config":"/config" \
+        -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
+        -v "/dev":"/dev" \
+        registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+        /jugendhackt-iso.sh flash $USB_DRIVE
+done
+
+# check whether build finished
+docker ps
+
+# repeat this command until you see no more running container with the jugendhackt-iso container
+docker ps
+
+# once all containers stopped, you can unplug all USB drives and repeat the for loop with your new batch
 ```
 
 ### Standalone using system libraries
@@ -57,9 +97,11 @@ docker run --privileged -ti --rm \
 The script will check all dependencies and tell you how to install them.
 
 ```shell
-# replace <usb-device> with the device path of your USB drive, e.g. /dev/sdb
-sudo ./jugendhackt-iso.sh <usb-device>
+# create build cache
+sudo ./jugendhackt-iso.sh build
 
+# replace <usb-device> with the device path of your USB drive, e.g. /dev/sdb
+sudo ./jugendhackt-iso.sh flash <usb-device>
 ```
 
 ### Build on aarch64 / Apple silicon / Raspberry Pi
@@ -89,4 +131,4 @@ This project was written for [Jugend hackt](https://jugendhackt.org), an Austria
 
 License: [EUPL-1.2](LICENSE)
 
-Author: The one with the braid <the-one@with-the-braid.cf>
+Author: The one with the braid <info@braid.business>

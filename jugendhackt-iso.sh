@@ -2,14 +2,19 @@
 
 set -e
 
-USB=$1
+STAGE=$1
+USB=$2
 
-if [[ "--help" == "$USB" || "-h" == "$USB" || -z "$USB" ]]; then
+if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 	echo "Bootstraps a persistent Ubuntu-based live system on a USB stick"
 	echo ""
-	echo "jugendhackt-iso.sh <usb-device>"
+	echo "1. Build a the cache for later bulk flash"
+	echo "> jugendhackt-iso.sh build"
 	echo ""
-	echo "Author: The one with the braid <the-one@with-the-braid.cf>"
+	echo "2. Flash the cached build onto a given USB drive"
+	echo "> jugendhackt-iso.sh flash <usb-device>"
+	echo ""
+	echo "Author: The one with the braid <info@braid.business>"
 	exit 0
 fi
 
@@ -35,23 +40,18 @@ if [[ $EUID != 0 ]]; then
 fi
 
 CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
-
 IDENTIFIER="${CONFIG_CHECKSUM}"
+SQUASHFS_FILE="/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
 
-echo "Creating mount points..."
-
-USB_MOUNT="$(mktemp -d)"
-DEBOOTSTRAP_ROOT="$(mktemp -d)"
-
-umount -f "$USB"* || true
-
-if [[ -f "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" ]]; then
-
-	echo "Using existing squashfs..."
-
-else
+if [[ ! -f "${SQUASHFS_FILE}" ]]; then
+	if [[ "build" != "$STAGE" ]]; then
+		echo "${SQUASHFS_FILE} not found. Please run first : $0 build"
+		exit 1
+	fi
 
 	echo "Bootstrapping live environment..."
+	
+	DEBOOTSTRAP_ROOT="$(mktemp -d)"
 
 	debootstrap "$RELEASE_BASE" "${DEBOOTSTRAP_ROOT}" "$RELEASE_MIRROR"
 
@@ -152,84 +152,97 @@ EOF
 	mksquashfs "$DEBOOTSTRAP_ROOT" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
 	echo "Keeping squashfs cached at /var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs for later use. Remove in order to clean up space."
 
-fi
+	rm -rf "$DEBOOTSTRAP_ROOT"
 
-SQUASHFS_SIZE="$(du -s "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" | cut -f1)"
+else
 
-PART_2_SIZE="$((500000 + SQUASHFS_SIZE))"
+	if [[ "flash" != "$STAGE" ]]; then
+		echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
+		exit 1
+	fi
 
-echo "Preparing temporary files..."
+	echo "Creating mount points..."
 
-parted --script "$USB" mklabel gpt
-sync "$USB"
+	USB_MOUNT="$(mktemp -d)"
 
-(
-	echo o
-	echo y
+	umount -f "$USB"* || true
 
-	echo n
-	echo 4
-	echo ""
-	echo "+1M"
-	echo "ef02"
+	SQUASHFS_SIZE="$(du -s "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" | cut -f1)"
 
-	echo n
-	echo 1
-	echo ""
-	echo "+512M"
-	echo "ef00"
+	PART_2_SIZE="$((500000 + SQUASHFS_SIZE))"
 
-	echo n
-	echo 2
-	echo ""
-	echo "+$(($PART_2_SIZE + 1024))"K
-	echo ""
+	echo "Preparing temporary files..."
 
-	echo n
-	echo 3
-	echo ""
-	echo ""
-	echo ""
+	parted --script "$USB" mklabel gpt
+	sync "$USB"
 
-	echo w
-	echo Y
-) | gdisk "$USB"
+	(
+		echo o
+		echo y
 
-parted --script "$USB" set 4 bios_grub on
+		echo n
+		echo 4
+		echo ""
+		echo "+1M"
+		echo "ef02"
 
-sync "$USB"
+		echo n
+		echo 1
+		echo ""
+		echo "+512M"
+		echo "ef00"
 
-echo "Bootstrapping filesystems..."
+		echo n
+		echo 2
+		echo ""
+		echo "+$(($PART_2_SIZE + 1024))"K
+		echo ""
 
-yes | mkfs.msdos -n "ESP" "${USB}1"
-yes | mkfs.msdos -n "BIOS" "${USB}4"
-mkfs.ext4 -F -L "Jugend hackt Live" "${USB}2"
-mkfs.ext4 -F -L "casper-rw" "${USB}3"
+		echo n
+		echo 3
+		echo ""
+		echo ""
+		echo ""
 
-tune2fs -O ^metadata_csum_seed "${USB}2"
-tune2fs -O ^metadata_csum_seed "${USB}3"
+		echo w
+		echo Y
+	) | gdisk "$USB"
 
-mount "${USB}2" "${USB_MOUNT}"
+	parted --script "$USB" set 4 bios_grub on
 
-echo "Copying live media"
+	sync "$USB"
 
-mkdir "${USB_MOUNT}/casper"
-cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/filesystem.squashfs"
+	echo "Bootstrapping filesystems..."
 
-echo "Patching bootloader config..."
+	yes | mkfs.msdos -n "ESP" "${USB}1"
+	yes | mkfs.msdos -n "BIOS" "${USB}4"
+	mkfs.ext4 -F -L "Jugend hackt Live" "${USB}2"
+	mkfs.ext4 -F -L "casper-rw" "${USB}3"
 
-LINUX_TMP="$(mktemp -u)"
+	tune2fs -O ^metadata_csum_seed "${USB}2"
+	tune2fs -O ^metadata_csum_seed "${USB}3"
 
-unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot
+	mount "${USB}2" "${USB_MOUNT}"
 
-cp "${LINUX_TMP}/boot/vmlinuz" "${LINUX_TMP}/boot/initrd.img" "${USB_MOUNT}/casper/"
+	echo "Copying live media"
 
-rm -rf "${LINUX_TMP}"
+	mkdir "${USB_MOUNT}/casper"
+	cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/filesystem.squashfs"
 
-echo "Installing grub"
+	echo "Patching bootloader config..."
 
-mkdir -p "${USB_MOUNT}/boot/grub" 
-cat <<EOF > "${USB_MOUNT}/boot/grub/grub.cfg"
+	LINUX_TMP="$(mktemp -u)"
+
+	unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot
+
+	cp "${LINUX_TMP}/boot/vmlinuz" "${LINUX_TMP}/boot/initrd.img" "${USB_MOUNT}/casper/"
+
+	rm -rf "${LINUX_TMP}"
+
+	echo "Installing grub"
+
+	mkdir -p "${USB_MOUNT}/boot/grub"
+	cat <<EOF > "${USB_MOUNT}/boot/grub/grub.cfg"
 set timeout=30
 
 loadfont unicode
@@ -254,45 +267,45 @@ fi
 
 EOF
 
-SQUASHFS_TMP="$(mktemp -d)"
-CDROM_TMP="${SQUASHFS_TMP}/cdrom"
-ESP_TMP="${SQUASHFS_TMP}/boot/efi"
+	SQUASHFS_TMP="$(mktemp -d)"
+	CDROM_TMP="${SQUASHFS_TMP}/cdrom"
+	ESP_TMP="${SQUASHFS_TMP}/boot/efi"
 
-mkdir -p "${ESP_TMP}" || true
-mkdir -p "${CDROM_TMP}" || true
+	mkdir -p "${ESP_TMP}" || true
+	mkdir -p "${CDROM_TMP}" || true
 
-mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
-mount "${USB}1" "${ESP_TMP}"
-mount "${USB}2" "${CDROM_TMP}"
+	mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
+	mount "${USB}1" "${ESP_TMP}"
+	mount "${USB}2" "${CDROM_TMP}"
 
-for MOUNTPOINT in dev dev/pts sys proc; do
-	mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
-done
+	for MOUNTPOINT in dev dev/pts sys proc; do
+		mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
+	done
 
-chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}" || true
-chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
+	chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}" || true
+	chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
 
-for MOUNTPOINT in dev/pts dev sys proc; do
-	umount "${SQUASHFS_TMP}/${MOUNTPOINT}"
-done
+	for MOUNTPOINT in dev/pts dev sys proc; do
+		umount "${SQUASHFS_TMP}/${MOUNTPOINT}"
+	done
 
-umount "${ESP_TMP}"
-umount "${CDROM_TMP}"
-umount "${SQUASHFS_TMP}"
+	umount "${ESP_TMP}"
+	umount "${CDROM_TMP}"
+	umount "${SQUASHFS_TMP}"
 
-rm -rf "${SQUASHFS_TMP}"
+	rm -rf "${SQUASHFS_TMP}"
 
-echo "Syncing drive..."
+	echo "Syncing drive..."
 
-sync "$USB"
+	sync "$USB"
 
-echo "Removing temporary files..."
+	echo "Removing temporary files..."
 
-umount "$USB_MOUNT"
+	umount "$USB_MOUNT"
 
-rmdir "$USB_MOUNT"
+	rmdir "$USB_MOUNT"
 
-rm -rf "$DEBOOTSTRAP_ROOT"
+fi
 
 echo "Done."
 
