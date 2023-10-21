@@ -5,7 +5,7 @@ set -e
 STAGE=$1
 USB=$2
 
-if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
+if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" || "flash" == "$STAGE" && -z "$USB" ]]; then
 	echo "Bootstraps a persistent Ubuntu-based live system on a USB stick"
 	echo ""
 	echo "1. Build a the cache for later bulk flash"
