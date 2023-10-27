@@ -39,6 +39,8 @@ nano config
 # 
 # e.g. on Ubuntu, execute : 
 # $ sudo apt install docker.io
+# $ sudo usermod -aG docker $USER
+# $ newgrp docker
 
 # once create a build cache for the current configuration
 docker run --privileged -ti --rm \
