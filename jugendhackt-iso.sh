@@ -4,6 +4,11 @@ set -e
 
 STAGE=$1
 USB=$2
+PART_BASE="${USB}"
+
+if [[ $USB = /dev/nvme* ]]; then
+  PART_BASE="${USB}p"
+fi
 
 if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" || "flash" == "$STAGE" && -z "$USB" ]]; then
 	echo "Bootstraps a persistent Ubuntu-based live system on a USB stick"
@@ -214,15 +219,15 @@ else
 
 	echo "Bootstrapping filesystems..."
 
-	yes | mkfs.msdos -n "ESP" "${USB}1"
-	yes | mkfs.msdos -n "BIOS" "${USB}4"
-	mkfs.ext4 -F -L "Jugend hackt Live" "${USB}2"
-	mkfs.ext4 -F -L "casper-rw" "${USB}3"
+	yes | mkfs.msdos -n "ESP" "${PART_BASE}1"
+	yes | mkfs.msdos -n "BIOS" "${PART_BASE}4"
+	mkfs.ext4 -F -L "Jugend hackt Live" "${PART_BASE}2"
+	mkfs.ext4 -F -L "casper-rw" "${PART_BASE}3"
 
-	tune2fs -O ^metadata_csum_seed "${USB}2"
-	tune2fs -O ^metadata_csum_seed "${USB}3"
+	tune2fs -O ^metadata_csum_seed "${PART_BASE}2"
+	tune2fs -O ^metadata_csum_seed "${PART_BASE}3"
 
-	mount "${USB}2" "${USB_MOUNT}"
+	mount "${PART_BASE}2" "${USB_MOUNT}"
 
 	echo "Copying live media"
 
@@ -275,8 +280,8 @@ EOF
 	mkdir -p "${CDROM_TMP}" || true
 
 	mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
-	mount "${USB}1" "${ESP_TMP}"
-	mount "${USB}2" "${CDROM_TMP}"
+	mount "${PART_BASE}1" "${ESP_TMP}"
+	mount "${PART_BASE}2" "${CDROM_TMP}"
 
 	for MOUNTPOINT in dev dev/pts sys proc; do
 		mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
