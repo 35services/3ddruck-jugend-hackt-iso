@@ -106,6 +106,8 @@ sudo ./jugendhackt-iso.sh build
 sudo ./jugendhackt-iso.sh flash <usb-device>
 ```
 
+The environment variable `CACHE_PATH` controls where the resulting squashfs image will be stored and read from. If unset, it will default to `/var/cache/jugendhackt-iso`.
+
 ### Build on aarch64 / Apple silicon / Raspberry Pi
 
 As of now, it's not possible to build on aarch64 since we need to execute native binaries for amd64 in order to build the sticks for amd64. My past attempts using qemu-binfmt were not successful.

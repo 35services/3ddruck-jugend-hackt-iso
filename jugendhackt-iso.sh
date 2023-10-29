@@ -41,7 +41,8 @@ fi
 
 CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
 IDENTIFIER="${CONFIG_CHECKSUM}"
-SQUASHFS_FILE="/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
+CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
+SQUASHFS_FILE="${CACHE_PATH}/${IDENTIFIER}.squashfs"
 
 if [[ ! -f "${SQUASHFS_FILE}" ]]; then
 	if [[ "build" != "$STAGE" ]]; then
@@ -145,12 +146,12 @@ EOF
 		umount "${DEBOOTSTRAP_ROOT}/${MOUNTPOINT}"
 	done
 
-	if [[ ! -d /var/cache/jugendhackt-iso ]]; then
-		mkdir "/var/cache/jugendhackt-iso"
+	if [[ ! -d $CACHE_PATH ]]; then
+		mkdir "${CACHE_PATH}"
 	fi
 
-	mksquashfs "$DEBOOTSTRAP_ROOT" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs"
-	echo "Keeping squashfs cached at /var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs for later use. Remove in order to clean up space."
+	mksquashfs "$DEBOOTSTRAP_ROOT" "${SQUASHFS_FILE}"
+	echo "Keeping squashfs cached at ${SQUASHFS_FILE} for later use. Remove in order to clean up space."
 
 	rm -rf "$DEBOOTSTRAP_ROOT"
 
@@ -167,7 +168,7 @@ else
 
 	umount -f "$USB"* || true
 
-	SQUASHFS_SIZE="$(du -s "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" | cut -f1)"
+	SQUASHFS_SIZE="$(du -s "${SQUASHFS_FILE}" | cut -f1)"
 
 	PART_2_SIZE="$((500000 + SQUASHFS_SIZE))"
 
@@ -227,13 +228,13 @@ else
 	echo "Copying live media"
 
 	mkdir "${USB_MOUNT}/casper"
-	cp "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" "${USB_MOUNT}/casper/filesystem.squashfs"
+	cp "${SQUASHFS_FILE}" "${USB_MOUNT}/casper/filesystem.squashfs"
 
 	echo "Patching bootloader config..."
 
 	LINUX_TMP="$(mktemp -u)"
 
-	unsquashfs -d "${LINUX_TMP}" "/var/cache/jugendhackt-iso/${IDENTIFIER}.squashfs" /boot
+	unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
 
 	cp "${LINUX_TMP}/boot/vmlinuz" "${LINUX_TMP}/boot/initrd.img" "${USB_MOUNT}/casper/"
 
