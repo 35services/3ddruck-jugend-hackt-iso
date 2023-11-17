@@ -3,7 +3,7 @@
 # This file configures the adjustments to the bootstraped live environment
 
 # the Ubuntu release codename to use for bootstrap
-RELEASE_BASE="mantic"
+RELEASE_BASE="noble"
 
 # the Ubuntu archive mirror to use for bootstrap. Does not affect running system
 RELEASE_MIRROR="http://archive.ubuntu.com/ubuntu"
@@ -19,7 +19,7 @@ KEYBOARD_LAYOUT="de"
 LANGUAGE_PACK="de"
 
 # additional APT repositories to enable
-ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers ppa:canonical-kernel-team/proposed"
+ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers"
 
 # additional APT packages to install
 ADDITIONAL_PACKAGES="git vim nano firefox godot3 blender gimp android-sdk android-sdk nodejs npm vlc"
