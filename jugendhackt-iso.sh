@@ -4,11 +4,6 @@ set -e
 
 STAGE=$1
 USB=$2
-PART_BASE="${USB}"
-
-if [[ $USB = /dev/nvme* ]]; then
-  PART_BASE="${USB}p"
-fi
 
 if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" || "flash" == "$STAGE" && -z "$USB" ]]; then
 	echo "Bootstraps a persistent Ubuntu-based live system on a USB stick"
@@ -23,9 +18,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" || "flash" == "$ST
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)\n - bwrap (bubblewrap)"
 
-for COMMAND in debootstrap gdisk parted mkfs.msdos unsquashfs mksquashfs udevadm; do
+for COMMAND in debootstrap gdisk parted mkfs.msdos unsquashfs mksquashfs udevadm bwrap; do
 	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
 		exit 1
@@ -49,58 +44,125 @@ IDENTIFIER="${CONFIG_CHECKSUM}"
 CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
 SQUASHFS_FILE="${CACHE_PATH}/${IDENTIFIER}.squashfs"
 
-if [[ ! -f "${SQUASHFS_FILE}" ]]; then
-	if [[ "build" != "$STAGE" ]]; then
-		echo "${SQUASHFS_FILE} not found. Please run first : $0 build"
-		exit 1
-	fi
+if [[ -z "$KEYBOARD_LAYOUT" ]]; then
+  KEYBOARD_LAYOUT="us"
+fi
 
-	echo "Bootstrapping live environment..."
-	
-	DEBOOTSTRAP_ROOT="$(mktemp -d)"
+if [[ -z "$LANGUAGE" ]]; then
+  LANGUAGE="en_US"
+fi
 
-	debootstrap "$RELEASE_BASE" "${DEBOOTSTRAP_ROOT}" "$RELEASE_MIRROR"
+if [[ -z "$LANGUAGE_PACK" ]]; then
+  LANGUAGE_PACK="en"
+fi
 
-	for MOUNTPOINT in dev dev/pts sys proc; do
-		mount -B "/$MOUNTPOINT" "${DEBOOTSTRAP_ROOT}/${MOUNTPOINT}"
-	done
+function mount_chroot() {
+  CHROOT="$1"
 
-	mkdir "${DEBOOTSTRAP_ROOT}/cdrom"
-	mkdir "${DEBOOTSTRAP_ROOT}/boot/efi"
+  # self-bind in order to fix "bwrap: Failed to make master / slave: Invalid argument"
+  # see https://github.com/flatpak/flatpak/issues/703#issuecomment-293250243
+	mount --bind "${CHROOT}" "${CHROOT}"
 
-	mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf" "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup"
-	echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
-	
-	# create APT system user
-	chroot "$DEBOOTSTRAP_ROOT" adduser --force-badname --system --home /nonexistent --no-create-home --quiet _apt || true
-	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
-	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y software-properties-common
-	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
-	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
-	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y multiverse
-	chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y restricted
+  mount proc "$CHROOT/proc" -t proc -o nosuid,noexec,nodev
+  mount sys "$CHROOT/sys" -t sysfs -o nosuid,noexec,nodev,ro
+  mount udev "$CHROOT/dev" -t devtmpfs -o mode=0755,nosuid
+  mount devpts "$CHROOT/dev/pts" -t devpts -o mode=0620,gid=5,nosuid,noexec
+  mount shm "$CHROOT/dev/shm" -t tmpfs -o mode=1777,nosuid,nodev
+  mount tmp "$CHROOT/tmp" -t tmpfs -o mode=1777,strictatime,nodev,nosuid
+}
 
-	if [[ ! -z "$ADDITIONAL_REPOSITORIES" ]]; then
-		for PPA in $ADDITIONAL_REPOSITORIES; do
-			echo "Adding apt repository ${PPA}"
-			chroot "$DEBOOTSTRAP_ROOT" add-apt-repository -y "$PPA"
-		done
-	else
-		echo "No additional apt repositories to add."
-	fi
+function umount_chroot() {
+  CHROOT="$1"
 
-	# enabling source packages for advanced package search
-	for file in "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list" "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list.d/"*; do
-		sed -i '/deb-src/s/^# //' $file
-	done
-	
-	chroot "$DEBOOTSTRAP_ROOT" apt update -qq
+  umount "$CHROOT/tmp"
+  umount "$CHROOT/dev/shm"
+  umount "$CHROOT/dev/pts"
+  umount "$CHROOT/dev"
+  umount "$CHROOT/sys"
+  umount "$CHROOT/proc"
 
-	echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
-	echo "set passwd/user-default-groups adm cdrom sudo dip plugdev lpadmin sambashare operator dialout audio video debian-tor lxd" | chroot "$DEBOOTSTRAP_ROOT" debconf-set-selections
+  umount "$CHROOT"
+}
 
-	# overwriting package source priorities for Firefox
-	cat <<EOF > "${DEBOOTSTRAP_ROOT}/etc/apt/preferences.d/mozillateam"
+chroot_env () {
+	chroot "$1" \
+		/usr/bin/env -i \
+		DEBIAN_FRONTEND=noninteractive \
+		PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
+		XDG_CONFIG_DIRS=/etc/xdg \
+		DEFAULT_XDG_CONFIG_DIRS=/etc/xdg \
+		XDG_DATA_DIRS=/usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
+		XDG_DATA_HOME=/usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
+		DEFAULT_XDG_DATA_DIRS=/usr/local/share/:/usr/share/ \
+		"${@:2}"
+}
+
+bwrap_env () {
+	bwrap \
+		--bind "$1" / \
+		--dev /dev \
+		--proc /proc \
+		--bind /sys /sys \
+		--bind /run /run \
+		--clearenv \
+		--setenv DEBIAN_FRONTEND noninteractive \
+		--setenv XDG_CURRENT_DESKTOP GNOME \
+		--setenv GDMSESSION gnome \
+		--setenv DESKTOP_SESSION gnome \
+		--setenv PATH /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
+		--setenv XDG_CONFIG_DIRS /etc/xdg \
+		--setenv DEFAULT_XDG_CONFIG_DIRS /etc/xdg \
+		--setenv XDG_DATA_DIRS /usr/share/gnome:/home/user/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share \
+		--setenv XDG_DATA_HOME /usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
+		--setenv DEFAULT_XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
+		"${@:2}"
+}
+
+
+function build_squashfs() {
+  DEBOOTSTRAP_ROOT="$1"
+
+  echo "Bootstrapping live environment..."
+
+  debootstrap "$RELEASE_BASE" "${DEBOOTSTRAP_ROOT}" "$RELEASE_MIRROR"
+
+  mount_chroot "$DEBOOTSTRAP_ROOT"
+
+  mkdir "${DEBOOTSTRAP_ROOT}/cdrom"
+  mkdir "${DEBOOTSTRAP_ROOT}/boot/efi"
+
+  mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf" "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup"
+  echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
+
+  chroot_env "$DEBOOTSTRAP_ROOT" apt update
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y software-properties-common
+  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
+  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
+  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y multiverse
+  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y restricted
+
+  if [[ ! -z "$ADDITIONAL_REPOSITORIES" ]]; then
+    for PPA in $ADDITIONAL_REPOSITORIES; do
+      echo "Adding apt repository ${PPA}"
+      chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y "$PPA"
+    done
+  else
+    echo "No additional apt repositories to add."
+  fi
+
+  # enabling source packages for advanced package search
+  for file in "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list" "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list.d/"*; do
+    sed -i '/deb-src/s/^# //' "$file"
+  done
+
+  chroot_env "$DEBOOTSTRAP_ROOT" apt update
+
+  for SELECTION in "${DEBCONF_SELECTIONS[@]}"; do
+    echo "$SELECTION" | chroot_env "$DEBOOTSTRAP_ROOT" debconf-set-selections
+  done
+
+  # overwriting package source priorities for Firefox
+  cat <<EOF > "${DEBOOTSTRAP_ROOT}/etc/apt/preferences.d/mozillateam"
 Package: *
 Pin: release o=LP-PPA-mozillateam
 Pin-Priority: 100
@@ -114,64 +176,73 @@ Pin: release o=Ubuntu
 Pin-Priority: -1
 EOF
 
-	if [[ -z "$KEYBOARD_LAYOUT" ]]; then
-		KEYBOARD_LAYOUT="us"
-	fi
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y ubuntu-desktop ubuntu-restricted-extras language-pack-${LANGUAGE_PACK} language-pack-gnome-${LANGUAGE_PACK} language-pack-${LANGUAGE_PACK}-base language-pack-gnome-${LANGUAGE_PACK}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
 
-	if [[ -z "$LANGUAGE" ]]; then
-		LANGUAGE="en_US"
-	fi
+  sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${DEBOOTSTRAP_ROOT}/etc/default/keyboard"
+  chroot_env "$DEBOOTSTRAP_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
 
-	if [[ -z "$LANGUAGE_PACK" ]]; then
-		LANGUAGE_PACK="en"
-	fi
+  echo "Installing additional packages"
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
+  chroot_env "$DEBOOTSTRAP_ROOT" apt purge -y $PACKAGE_REMOVAL
 
-	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y ubuntu-desktop ubuntu-restricted-extras language-pack-${LANGUAGE_PACK} language-pack-gnome-${LANGUAGE_PACK} language-pack-${LANGUAGE_PACK}-base language-pack-gnome-${LANGUAGE_PACK}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
-	
-	sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${DEBOOTSTRAP_ROOT}/etc/default/keyboard"
-	chroot "$DEBOOTSTRAP_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
+  chroot_env "$DEBOOTSTRAP_ROOT" apt autoremove -y
+  chroot_env "$DEBOOTSTRAP_ROOT" apt clean
+  chroot_env "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
 
-	echo "Installing additional packages"
-	chroot "$DEBOOTSTRAP_ROOT" apt install -qq -y $ADDITIONAL_PACKAGES
-	chroot "$DEBOOTSTRAP_ROOT" apt purge -qq -y $PACKAGE_REMOVAL
+  echo "Installing additional flatpaks..."
 
-	chroot "$DEBOOTSTRAP_ROOT" apt autoremove -qq -y
-	chroot "$DEBOOTSTRAP_ROOT" apt clean
-	chroot "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
+  # https://deb.li/bubblewrap
+  sysctl kernel.unprivileged_userns_clone=1
 
-	echo "Installing additional flatpaks..."
-	yes | chroot "$DEBOOTSTRAP_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-	for FLATPAK in $ADDITIONAL_FLATPAKS; do
-		chroot "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
-	done
+  chroot_env "$DEBOOTSTRAP_ROOT" sh -c 'grep /usr/bin/bwrap /var/lib/dpkg/statoverride || dpkg-statoverride --update --add root root 0755 /usr/bin/bwrap'
+  echo kernel.unprivileged_userns_clone=1 > "$DEBOOTSTRAP_ROOT/etc/sysctl.d/50-bubblewrap.conf"
 
-	mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup" "$DEBOOTSTRAP_ROOT/etc/resolv.conf"
+  yes | bwrap_env "$DEBOOTSTRAP_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
 
-	for MOUNTPOINT in dev/pts dev sys proc; do
-		umount "${DEBOOTSTRAP_ROOT}/${MOUNTPOINT}"
-	done
+  for FLATPAK in $ADDITIONAL_FLATPAKS; do
+    bwrap_env "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
+  done
+  bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
 
-	if [[ ! -d $CACHE_PATH ]]; then
-		mkdir "${CACHE_PATH}"
-	fi
+  sed -i -e 's/USERNAME=".*"/USERNAME="alpaka"/' -e 's/USERFULLNAME=".*"/USERFULLNAME="Jugend hackt Teilnehmer*in"/' -e 's/HOST=".*"/HOST="jugendhackt"/' "$DEBOOTSTRAP_ROOT/etc/casper.conf"
 
-	mksquashfs "$DEBOOTSTRAP_ROOT" "${SQUASHFS_FILE}"
-	echo "Keeping squashfs cached at ${SQUASHFS_FILE} for later use. Remove in order to clean up space."
+  mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup" "$DEBOOTSTRAP_ROOT/etc/resolv.conf"
 
-	rm -rf "$DEBOOTSTRAP_ROOT"
+  umount_chroot "$DEBOOTSTRAP_ROOT"
 
-else
+  if [[ ! -d $CACHE_PATH ]]; then
+    mkdir "${CACHE_PATH}"
+  fi
 
-	if [[ "flash" != "$STAGE" ]]; then
-		echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
-		exit 1
-	fi
+  mksquashfs "$DEBOOTSTRAP_ROOT" "${SQUASHFS_FILE}"
+  echo "Keeping squashfs cached at ${SQUASHFS_FILE} for later use. Remove in order to clean up space."
 
-	echo "Creating mount points..."
+  rm -rf "$DEBOOTSTRAP_ROOT"
+}
 
-	USB_MOUNT="$(mktemp -d)"
+function flash_usb() {
+  DEVICE="${USB}"
 
-	umount -f "$USB"* || true
+  if [[ $USB == /dev/nvme* || $USB == /dev/loop* ]]; then
+    DEVICE_BIOS="${DEVICE}p4"
+    DEVICE_ESP="${DEVICE}p1"
+    DEVICE_CDROM="${DEVICE}p2"
+    DEVICE_CASPER="${DEVICE}p3"
+  elif [[ $USB == /dev/sd* ]]; then
+    DEVICE_BIOS="${DEVICE}4"
+    DEVICE_ESP="${DEVICE}1"
+    DEVICE_CDROM="${DEVICE}2"
+    DEVICE_CASPER="${DEVICE}3"
+  else
+    echo "Device path $DEVICE unknown. Expected /dev/sdX, /dev/nvmeXnY or /dev/loopX."
+    exit 1
+  fi
+
+  echo "Creating mount points..."
+
+  USB_MOUNT="$1"
+  SQUASHFS_TMP="$2"
 
 	SQUASHFS_SIZE="$(du -s "${SQUASHFS_FILE}" | cut -f1)"
 
@@ -179,8 +250,8 @@ else
 
 	echo "Preparing temporary files..."
 
-	parted --script "$USB" mklabel gpt
-	sync "$USB"
+	parted --script "$DEVICE" mklabel gpt
+	sync "$DEVICE"
 
 	(
 		echo o
@@ -212,23 +283,23 @@ else
 
 		echo w
 		echo Y
-	) | gdisk "$USB"
+	) | gdisk "$DEVICE"
 
-	parted --script "$USB" set 4 bios_grub on
+	parted --script "$DEVICE" set 4 bios_grub on
 
-	sync "$USB"
+	sync "$DEVICE"
 
 	echo "Bootstrapping filesystems..."
 
-	yes | mkfs.msdos -n "ESP" "${PART_BASE}1"
-	yes | mkfs.msdos -n "BIOS" "${PART_BASE}4"
-	mkfs.ext4 -F -L "Jugend hackt Live" "${PART_BASE}2"
-	mkfs.ext4 -F -L "casper-rw" "${PART_BASE}3"
+	yes | mkfs.msdos -n "ESP" "${DEVICE_ESP}"
+	yes | mkfs.msdos -n "BIOS" "${DEVICE_BIOS}"
+	mkfs.ext4 -F -L "Jugend hackt Live" "${DEVICE_CDROM}"
+	mkfs.ext4 -F -L "casper-rw" "${DEVICE_CASPER}"
 
-	tune2fs -O ^metadata_csum_seed "${PART_BASE}2"
-	tune2fs -O ^metadata_csum_seed "${PART_BASE}3"
+	tune2fs -O ^metadata_csum_seed "${DEVICE_CDROM}"
+	tune2fs -O ^metadata_csum_seed "${DEVICE_CASPER}"
 
-	mount "${PART_BASE}2" "${USB_MOUNT}"
+	mount "${DEVICE_CDROM}" "${USB_MOUNT}"
 
 	echo "Copying live media"
 
@@ -258,7 +329,7 @@ set menu_color_highlight=black/light-gray
 
 menuentry "Try Ubuntu (persistent)" {
 	set gfxpayload=keep
-	linux	/casper/vmlinuz boot=casper persistent fsck.mode=skip noprompt locale="${LANGUAGE}.UTF-8" keyb="${KEYBOARD_LAYOUT}" quiet splash
+	linux	/casper/vmlinuz boot=casper persistent fsck.mode=skip noprompt locale="${LANGUAGE}.UTF-8" keyb="${KEYBOARD_LAYOUT}" kernel.unprivileged_userns_clone=1 quiet splash
 	initrd	/casper/initrd.img
 }
 grub_platform
@@ -273,7 +344,6 @@ fi
 
 EOF
 
-	SQUASHFS_TMP="$(mktemp -d)"
 	CDROM_TMP="${SQUASHFS_TMP}/cdrom"
 	ESP_TMP="${SQUASHFS_TMP}/boot/efi"
 
@@ -281,22 +351,17 @@ EOF
 	mkdir -p "${CDROM_TMP}" || true
 
 	mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
-	mount "${PART_BASE}1" "${ESP_TMP}"
-	mount "${PART_BASE}2" "${CDROM_TMP}"
 
-	for MOUNTPOINT in dev dev/pts sys proc; do
-		mount -B "/$MOUNTPOINT" "${SQUASHFS_TMP}/${MOUNTPOINT}"
-	done
+	mount_chroot "$SQUASHFS_TMP"
+	mount "${DEVICE_ESP}" "${ESP_TMP}"
+	mount "${DEVICE_CDROM}" "${CDROM_TMP}"
 
-	chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}" || true
-	chroot "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
-
-	for MOUNTPOINT in dev/pts dev sys proc; do
-		umount "${SQUASHFS_TMP}/${MOUNTPOINT}"
-	done
+	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}" || true
+	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
 
 	umount "${ESP_TMP}"
 	umount "${CDROM_TMP}"
+	umount_chroot "$SQUASHFS_TMP"
 	umount "${SQUASHFS_TMP}"
 
 	rm -rf "${SQUASHFS_TMP}"
@@ -310,6 +375,42 @@ EOF
 	umount "$USB_MOUNT"
 
 	rmdir "$USB_MOUNT"
+}
+
+if [[ ! -f "${SQUASHFS_FILE}" ]]; then
+
+  if [[ "build" != "$STAGE" ]]; then
+    echo "${SQUASHFS_FILE} not found. Please run first : $0 build"
+    exit 1
+  fi
+
+  DEBOOTSTRAP_ROOT="$(mktemp -d)"
+
+	build_squashfs "$DEBOOTSTRAP_ROOT"
+
+	if [ "$?" -ne 0 ]; then
+    echo -e "Error building squashfs.\n\nYou can check check $DEBOOTSTRAP_ROOT for details."
+    umount_chroot_env "$DEBOOTSTRAP_ROOT"
+    exit 1
+  fi
+
+else
+
+	if [[ "flash" != "$STAGE" ]]; then
+		echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
+		exit 1
+	fi
+
+	USB_MOUNT="$(mktemp -d)"
+	SQUASHFS_TMP="$(mktemp -d)"
+
+	flash_usb "$USB_MOUNT" "$SQUASHFS_TMP"
+
+	if [ "$?" -ne 0 ]; then
+    echo -e "Error flashing USB drive.\n\nPleas check $USB_MOUNT and $SQUASHFS_TMP for details."
+    umount_chroot_env "$SQUASHFS_TMP"
+    exit 1
+  fi
 
 fi
 

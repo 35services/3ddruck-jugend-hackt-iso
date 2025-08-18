@@ -1,5 +1,8 @@
 # jugendhackt-iso.sh
 
+**Please note:** This project lives on https://git.alpaka.space/aic/jugendhackt-iso.
+The mirror on https://gitlab.com/Jugendhackt/jugendhackt-iso is no longer maintained.
+
 Bootstraps a persistent Ubuntu-based live system on a USB stick.
 
 ## Features
@@ -46,7 +49,7 @@ nano config
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
-    registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+    registry.git.alpaka.space/aic/jugendhackt-iso:main \
     /jugendhackt-iso.sh build
 
 # specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
@@ -57,7 +60,7 @@ docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     -v "/dev":"/dev" \
-    registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+    registry.git.alpaka.space/aic/jugendhackt-iso:main \
     /jugendhackt-iso.sh flash $USB_DRIVE
 ```
 
@@ -65,13 +68,13 @@ docker run --privileged -ti --rm \
 
 ```shell
 # pull the most recent docker image
-docker pull registry.gitlab.com/jugendhackt/jugendhackt-iso:main
+docker pull registry.git.alpaka.space/aic/jugendhackt-iso:main
 
 # once build the cache
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
-    registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+    registry.git.alpaka.space/aic/jugendhackt-iso:main \
     /jugendhackt-iso.sh build
 
 # flash image onto all USB drives
@@ -81,7 +84,7 @@ for USB_DRIVE in /dev/sdb /dev/sdc /dev/sdd /dev/sdN; do
         -v "$(pwd)/config":"/config" \
         -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
         -v "/dev":"/dev" \
-        registry.gitlab.com/jugendhackt/jugendhackt-iso:main \
+        registry.git.alpaka.space/aic/jugendhackt-iso:main \
         /jugendhackt-iso.sh flash $USB_DRIVE
 done
 
@@ -108,9 +111,9 @@ sudo ./jugendhackt-iso.sh flash <usb-device>
 
 The environment variable `CACHE_PATH` controls where the resulting squashfs image will be stored and read from. If unset, it will default to `/var/cache/jugendhackt-iso`.
 
-### Build on aarch64 / Apple silicon / Raspberry Pi
+### Build on AArch64 / Apple Silicon / Raspberry Pi
 
-As of now, it's not possible to build on aarch64 since we need to execute native binaries for amd64 in order to build the sticks for amd64. My past attempts using qemu-binfmt were not successful.
+As of now, it's not possible to build on AArch64 since we need to execute native binaries for amd64 in order to build the sticks for amd64. My past attempts using qemu-binfmt were not successful.
 
 ## Functionality
 

@@ -1,11 +1,9 @@
-FROM ubuntu:24.04
+FROM ubuntu:plucky
 
-RUN apt-get update
-RUN apt-get install -y debootstrap gdisk parted dosfstools squashfs-tools udev
-RUN rm -rf /var/cache/apt/*
+RUN apt-get update && \
+    apt-get install -y debootstrap gdisk parted dosfstools squashfs-tools udev bubblewrap && \
+    rm -rf /var/cache/apt/*
 
 COPY jugendhackt-iso.sh /jugendhackt-iso.sh
 
-WORKDIR /
-CMD /jugendhackt-iso.sh
-
+CMD ["/jugendhackt-iso.sh"]
