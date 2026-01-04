@@ -315,30 +315,8 @@ function flash_usb() {
 
 	mkdir -p "${USB_MOUNT}/.boot/grub"
 	chmod 700 "${USB_MOUNT}/.boot"
-	cat <<EOF > "${USB_MOUNT}/.boot/grub/grub.cfg"
-set timeout=10
 
-loadfont unicode
-
-set menu_color_normal=white/black
-set menu_color_highlight=black/light-gray
-
-menuentry "Jugend hackt Live (persistent)" {
-	set gfxpayload=keep
-	linux	/.live/vmlinuz boot=live components persistence persistence-label=Jugend-hackt-USB live-media-path=/.live noeject fsck.mode=skip kernel.unprivileged_userns_clone=1 quiet splash
-	initrd	/.live/initrd.img
-}
-grub_platform
-if [ "\$grub_platform" = "efi" ]; then
-menuentry 'Boot from next volume' {
-	exit 1
-}
-menuentry 'UEFI Firmware Settings' {
-	fwsetup
-}
-fi
-
-EOF
+	cp data/grub.cfg "${USB_MOUNT}/.boot/grub/grub.cfg"
 
 	CDROM_TMP="${SQUASHFS_TMP}/cdrom"
 	ESP_TMP="${SQUASHFS_TMP}/boot/efi"
