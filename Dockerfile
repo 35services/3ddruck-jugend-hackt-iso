@@ -1,4 +1,4 @@
-FROM ubuntu:plucky
+FROM debian:sid
 
 RUN apt-get update && \
     apt-get install -y debootstrap gdisk parted dosfstools squashfs-tools udev bubblewrap && \

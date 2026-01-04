@@ -6,7 +6,7 @@ STAGE=$1
 USB=$2
 
 if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" || "flash" == "$STAGE" && -z "$USB" ]]; then
-	echo "Bootstraps a persistent Ubuntu-based live system on a USB stick"
+	echo "Bootstraps a persistent Debian-based live system on a USB stick"
 	echo ""
 	echo "1. Build a the cache for later bulk flash"
 	echo "> jugendhackt-iso.sh build"
@@ -48,12 +48,16 @@ if [[ -z "$KEYBOARD_LAYOUT" ]]; then
   KEYBOARD_LAYOUT="us"
 fi
 
+if [[ -z "$TIMEZONE" ]]; then
+  TIMEZONE="UTC"
+fi
+
 if [[ -z "$LANGUAGE" ]]; then
   LANGUAGE="en_US"
 fi
 
-if [[ -z "$LANGUAGE_PACK" ]]; then
-  LANGUAGE_PACK="en"
+if [[ -z "$TASK_LANGUAGE" ]]; then
+  TASK_LANGUAGE="english"
 fi
 
 function mount_chroot() {
@@ -134,52 +138,24 @@ function build_squashfs() {
   mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf" "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup"
   echo -e "nameserver 9.9.9.9\nnameserver 149.112.112.112\nnameserver 2620:fe::fe\nnameserver 2620:fe::9" >"${DEBOOTSTRAP_ROOT}/etc/resolv.conf"
 
-  chroot_env "$DEBOOTSTRAP_ROOT" apt update
-  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y software-properties-common
-  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y main
-  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y universe
-  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y multiverse
-  chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y restricted
-
-  if [[ ! -z "$ADDITIONAL_REPOSITORIES" ]]; then
-    for PPA in $ADDITIONAL_REPOSITORIES; do
-      echo "Adding apt repository ${PPA}"
-      chroot_env "$DEBOOTSTRAP_ROOT" add-apt-repository -y "$PPA"
-    done
-  else
-    echo "No additional apt repositories to add."
+  if [ ! -d "$DEBOOTSTRAP_ROOT/etc/apt/sources.list.d" ]; then
+    mkdir "$DEBOOTSTRAP_ROOT/etc/apt/sources.list.d"
   fi
 
-  # enabling source packages for advanced package search
-  for file in "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list" "${DEBOOTSTRAP_ROOT}/etc/apt/sources.list.d/"*; do
-    sed -i '/deb-src/s/^# //' "$file"
-  done
+  cp data/debian.sources "$DEBOOTSTRAP_ROOT/etc/apt/sources.list.d/debian.sources"
 
+  if [ -f "$DEBOOTSTRAP_ROOT/etc/apt/sources.list" ]; then
+    rm "$DEBOOTSTRAP_ROOT/etc/apt/sources.list"
+  fi
+  
   chroot_env "$DEBOOTSTRAP_ROOT" apt update
 
-  for SELECTION in "${DEBCONF_SELECTIONS[@]}"; do
+  for SELECTION in "${DEBCONF_SELECTIONS[@]}" \
+    "firmware-ipw2x00 firmware-ipw2x00/license/accepted boolean true"; do
     echo "$SELECTION" | chroot_env "$DEBOOTSTRAP_ROOT" debconf-set-selections
   done
 
-  # overwriting package source priorities for Firefox
-  cat <<EOF > "${DEBOOTSTRAP_ROOT}/etc/apt/preferences.d/mozillateam"
-Package: *
-Pin: release o=LP-PPA-mozillateam
-Pin-Priority: 100
-
-Package: firefox*
-Pin: release o=LP-PPA-mozillateam
-Pin-Priority: 1001
-
-Package: firefox*
-Pin: release o=Ubuntu
-Pin-Priority: -1
-EOF
-
-  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y ubuntu-desktop ubuntu-restricted-extras language-pack-${LANGUAGE_PACK} language-pack-gnome-${LANGUAGE_PACK} language-pack-${LANGUAGE_PACK}-base language-pack-gnome-${LANGUAGE_PACK}-base flatpak gnome-software-plugin-flatpak fwupd ntfs-3g casper ubiquity-casper initramfs-tools live-boot-initramfs-tools live-boot live-tools linux-generic packagekit locales grub2 grub-pc grub-efi-amd64-signed
-
-  sed -i 's/XKBLAYOUT=\"\w*"/XKBLAYOUT=\"'$KEYBOARD_LAYOUT'\"/g' "${DEBOOTSTRAP_ROOT}/etc/default/keyboard"
-  chroot_env "$DEBOOTSTRAP_ROOT" /usr/sbin/update-locale LANG="${LANGUAGE}.UTF-8"
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak fwupd apt-transport-https hunspell task-$TASK_LANGUAGE $([[ $TASK_LANGUAGE == "english" ]] && echo "" || echo "task-$TASK_LANGUAGE-desktop") ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration
 
   echo "Installing additional packages"
   chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
@@ -205,7 +181,15 @@ EOF
   done
   bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
 
-  sed -i -e 's/USERNAME=".*"/USERNAME="alpaka"/' -e 's/USERFULLNAME=".*"/USERFULLNAME="Jugend hackt Teilnehmer*in"/' -e 's/HOST=".*"/HOST="jugendhackt"/' "$DEBOOTSTRAP_ROOT/etc/casper.conf"
+  cat << EOF > "$DEBOOTSTRAP_ROOT/etc/live/config.conf"
+LIVE_HOSTNAME="jugendhackt"
+LIVE_USERNAME="alpaka"
+LIVE_USER_FULLNAME="Jugend hackt Teilnehmer*in"
+LIVE_USER_DEFAULT_GROUPS="adm,cdrom,sudo,dip,plugdev,lpadmin,sambashare,operator,dialout,audio,video,debian-tor,lxd,docker"
+LIVE_LOCALES="$LANGUAGE.UTF-8"
+LIVE_TIMEZONE="$TIMEZONE"
+LIVE_KEYBOARD_LAYOUTS="$KAYBOARD_LAYOUT"
+EOF
 
   mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup" "$DEBOOTSTRAP_ROOT/etc/resolv.conf"
 
@@ -228,12 +212,12 @@ function flash_usb() {
     DEVICE_BIOS="${DEVICE}p4"
     DEVICE_ESP="${DEVICE}p1"
     DEVICE_CDROM="${DEVICE}p2"
-    DEVICE_CASPER="${DEVICE}p3"
+    DEVICE_PERSISTENCE="${DEVICE}p3"
   elif [[ $USB == /dev/sd* ]]; then
     DEVICE_BIOS="${DEVICE}4"
     DEVICE_ESP="${DEVICE}1"
     DEVICE_CDROM="${DEVICE}2"
-    DEVICE_CASPER="${DEVICE}3"
+    DEVICE_PERSISTENCE="${DEVICE}3"
   else
     echo "Device path $DEVICE unknown. Expected /dev/sdX, /dev/nvmeXnY or /dev/loopX."
     exit 1
@@ -246,7 +230,7 @@ function flash_usb() {
 
 	SQUASHFS_SIZE="$(du -s "${SQUASHFS_FILE}" | cut -f1)"
 
-	PART_2_SIZE="$((500000 + SQUASHFS_SIZE))"
+	PART_2_SIZE="$((1000000 + SQUASHFS_SIZE))"
 
 	echo "Preparing temporary files..."
 
@@ -293,44 +277,56 @@ function flash_usb() {
 
 	yes | mkfs.msdos -n "ESP" "${DEVICE_ESP}"
 	yes | mkfs.msdos -n "BIOS" "${DEVICE_BIOS}"
-	mkfs.ext4 -F -L "Jugend hackt Live" "${DEVICE_CDROM}"
-	mkfs.ext4 -F -L "casper-rw" "${DEVICE_CASPER}"
+	mkfs.ext4 -F -L "BOOT" "${DEVICE_CDROM}"
+	mkfs.ext4 -F -L "Jugend-hackt-USB" "${DEVICE_PERSISTENCE}"
 
 	tune2fs -O ^metadata_csum_seed "${DEVICE_CDROM}"
-	tune2fs -O ^metadata_csum_seed "${DEVICE_CASPER}"
+	tune2fs -O ^metadata_csum_seed "${DEVICE_PERSISTENCE}"
 
-	mount "${DEVICE_CDROM}" "${USB_MOUNT}"
+	PERSISTENCE_TMP="$(mktemp -d)"
+
+	mount "${DEVICE_PERSISTENCE}" "${PERSISTENCE_TMP}"
+	cp data/persistence.conf "${PERSISTENCE_TMP}"
+
+	umount "${PERSISTENCE_TMP}"
+	rmdir "${PERSISTENCE_TMP}"
 
 	echo "Copying live media"
 
-	mkdir "${USB_MOUNT}/casper"
-	cp "${SQUASHFS_FILE}" "${USB_MOUNT}/casper/filesystem.squashfs"
+	mount "${DEVICE_CDROM}" "${USB_MOUNT}"
 
-	echo "Patching bootloader config..."
+	mkdir "${USB_MOUNT}/.live"
+	chmod 700 "${USB_MOUNT}/.live"
+
+	cp "${SQUASHFS_FILE}" "${USB_MOUNT}/.live/filesystem.squashfs"
+
+	echo "Copying kernel and initramfs"
 
 	LINUX_TMP="$(mktemp -u)"
 
 	unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
 
-	cp "${LINUX_TMP}/boot/vmlinuz" "${LINUX_TMP}/boot/initrd.img" "${USB_MOUNT}/casper/"
+	cp "${LINUX_TMP}/boot/vmlinuz"* "${USB_MOUNT}/.live/vmlinuz"
+	cp "${LINUX_TMP}/boot/initrd.img"* "${USB_MOUNT}/.live/initrd.img"
 
 	rm -rf "${LINUX_TMP}"
 
 	echo "Installing grub"
 
-	mkdir -p "${USB_MOUNT}/boot/grub"
-	cat <<EOF > "${USB_MOUNT}/boot/grub/grub.cfg"
-set timeout=30
+	mkdir -p "${USB_MOUNT}/.boot/grub"
+	chmod 700 "${USB_MOUNT}/.boot"
+	cat <<EOF > "${USB_MOUNT}/.boot/grub/grub.cfg"
+set timeout=10
 
 loadfont unicode
 
 set menu_color_normal=white/black
 set menu_color_highlight=black/light-gray
 
-menuentry "Try Ubuntu (persistent)" {
+menuentry "Jugend hackt Live (persistent)" {
 	set gfxpayload=keep
-	linux	/casper/vmlinuz boot=casper persistent fsck.mode=skip noprompt locale="${LANGUAGE}.UTF-8" keyb="${KEYBOARD_LAYOUT}" kernel.unprivileged_userns_clone=1 quiet splash
-	initrd	/casper/initrd.img
+	linux	/.live/vmlinuz boot=live components persistence persistence-label=Jugend-hackt-USB live-media-path=/.live noeject fsck.mode=skip kernel.unprivileged_userns_clone=1 quiet splash
+	initrd	/.live/initrd.img
 }
 grub_platform
 if [ "\$grub_platform" = "efi" ]; then
@@ -350,14 +346,14 @@ EOF
 	mkdir -p "${ESP_TMP}" || true
 	mkdir -p "${CDROM_TMP}" || true
 
-	mount -o ro "${USB_MOUNT}/casper/filesystem.squashfs" "${SQUASHFS_TMP}"
+	mount -o ro "${USB_MOUNT}/.live/filesystem.squashfs" "${SQUASHFS_TMP}"
 
 	mount_chroot "$SQUASHFS_TMP"
 	mount "${DEVICE_ESP}" "${ESP_TMP}"
 	mount "${DEVICE_CDROM}" "${CDROM_TMP}"
 
-	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/boot" "${USB}" || true
-	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/boot" --efi-directory="/boot/efi"
+	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" "${USB}" || true
+	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
 
 	umount "${ESP_TMP}"
 	umount "${CDROM_TMP}"
