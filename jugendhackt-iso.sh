@@ -243,7 +243,7 @@ function flash_usb() {
 
 		echo n
 		echo 4
-		echo ""
+		echo "2048"
 		echo "+1M"
 		echo "ef02"
 
@@ -330,7 +330,7 @@ function flash_usb() {
 	mount "${DEVICE_ESP}" "${ESP_TMP}"
 	mount "${DEVICE_CDROM}" "${CDROM_TMP}"
 
-	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" "${USB}" || true
+	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${USB}"
 	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
 
 	umount "${ESP_TMP}"
