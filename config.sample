@@ -2,11 +2,11 @@
 #
 # This file configures the adjustments to the bootstraped live environment
 
-# the Ubuntu release codename to use for bootstrap
-RELEASE_BASE="plucky"
+# the Debian release codename to use for bootstrap
+RELEASE_BASE="sid"
 
-# the Ubuntu archive mirror to use for bootstrap. Does not affect running system
-RELEASE_MIRROR="http://archive.ubuntu.com/ubuntu"
+# the Debian archive mirror to use for bootstrap. Does not affect running system
+RELEASE_MIRROR="https://deb.debian.org/debian"
 
 # the locale config. Supports de_AT for our beloved Jh Linz event <3 ^^
 LANGUAGE="de_DE"
@@ -14,26 +14,24 @@ LANGUAGE="de_DE"
 # the keyboard language to use
 KEYBOARD_LAYOUT="de"
 
-# the two-letter language code used for language pack installations, e.g. fr for language-pack-fr
-# Proudly introduced for Jh Zurich event <3
-LANGUAGE_PACK="de"
+# the time zone to use
+TIMEZONE="Europe/Berlin"
 
-# additional APT repositories to enable
-ADDITIONAL_REPOSITORIES="ppa:mozillateam/ppa ppa:oibaf/graphics-drivers"
+# the language task used for localization tasks, e.g. french for task-french
+# Proudly introduced for Jh Zurich event <3
+TASK_LANGUAGE="german"
 
 # additional APT packages to install
-ADDITIONAL_PACKAGES="git vim nano firefox godot3 blender gimp inkscape krita fritzing android-sdk nodejs npm vlc docker.io"
+ADDITIONAL_PACKAGES="git vim nano firefox webext-ublock-origin-firefox libreoffice godot3 blender gimp inkscape krita fritzing android-sdk nodejs npm vlc docker.io docker-compose docker-buildx"
 
 # additional Flatpak packages to include. Must be available on Flathub as of now
-ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.google.AndroidStudio com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 com.github.libresprite.LibreSprite org.processing.processingide org.zulip.Zulip io.github.ungoogled_software.ungoogled_chromium"
+ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.google.AndroidStudio com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 com.github.libresprite.LibreSprite org.processing.processingide org.zulip.Zulip io.github.ungoogled_software.ungoogled_chromium com.collaboraoffice.Office"
 
 DEBCONF_SELECTIONS=(
     "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true"
     # https://bugs-devel.debian.org/cgi-bin/bugreport.cgi?bug=856594
     "kdump-tools kdump-tools/use_kdump select false"
-    # you can set additional groups for the live user here
-    "set passwd/user-default-groups adm cdrom sudo dip plugdev lpadmin sambashare operator dialout audio video debian-tor lxd docker"
 )
 
-# your chance to remove bloatware like snapd or apport
-PACKAGE_REMOVAL="snapd apport"
+# your chance to remove bloatware you don't want to have installed
+PACKAGE_REMOVAL=""

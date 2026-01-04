@@ -3,11 +3,11 @@
 **Please note:** This project lives on https://git.alpaka.space/aic/jugendhackt-iso.
 The mirror on https://gitlab.com/Jugendhackt/jugendhackt-iso is no longer maintained.
 
-Bootstraps a persistent Ubuntu-based live system on a USB stick.
+Bootstraps a persistent Debian-based live system on a USB stick.
 
 ## Features
 
-- make Ubuntu persistent on your USB
+- make Debian persistent on your USB
 - apply a sharable configuration via a single config file
 - patch installed APT and Flatpak packages
 - remove Snapd
@@ -27,10 +27,7 @@ cp config.sample config
 # check, edit and adjust the config file to your needs (open it in an editor like nano)
 # 
 # E.g. for Events in Austria, change LANGUAGE to "de_AT" <3
-# 
-# IMPORTANT : check the latest Ubuntu *daily* release and adjust the RELEASE_BASE variable using the following command :
-# 
-# $ wget -qO- http://archive.ubuntu.com/ubuntu/dists/devel/Release | awk -F ': ' '$1 == "Codename" { print $2; exit }'
+ 
 nano config
 
 ```
@@ -122,7 +119,7 @@ The jugendhackt-iso script passes two general stages :
 1. boostrap a base system according to a config file or use a cached version
 2. copy the base system on a USB drive, make it bootable, persistent and Secure Boot compatible
 
-The first stage uses `deboostrap` in order to boostrap a Ubuntu base system. Naxt, PPAs, packages and flatpaks are installed according to the configuration and locale settings are applied.
+The first stage uses `deboostrap` in order to boostrap a Debian base system. Naxt, PPAs, packages and flatpaks are installed according to the configuration and locale settings are applied.
 
 Once the bootstrap is done, the compressed base system is stored in `/var/cache/jugendhackt-iso` in order to refactor it for the next use of the same configuration.
 
