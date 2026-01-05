@@ -9,9 +9,8 @@ Bootstraps a persistent Debian-based live system on a USB stick.
 
 - make Debian persistent on your USB
 - apply a sharable configuration via a single config file
-- patch installed APT and Flatpak packages
-- remove Snapd
-- cache patched system in order to speed up further USBs
+- create a customized Debian environment with frequently used APT and Flatpak packages
+- cache customized system in order to speed up further USB creation
 - supports Austrian German *<3 Jh Linz, love you*
 - supports Swiss keyboard layout *<3 Jh Zurich, love you*
 
@@ -123,9 +122,9 @@ The jugendhackt-iso script passes two general stages :
 1. boostrap a base system according to a config file or use a cached version
 2. copy the base system on a USB drive, make it bootable, persistent and Secure Boot compatible
 
-The first stage uses `deboostrap` in order to boostrap a Debian base system. Naxt, PPAs, packages and flatpaks are installed according to the configuration and locale settings are applied.
+The first stage uses `deboostrap` in order to boostrap a Debian base system. Next, APT packages and flatpaks are installed according to the configuration and locale settings are applied.
 
-Once the bootstrap is done, the compressed base system is stored in `/var/cache/jugendhackt-iso` in order to refactor it for the next use of the same configuration.
+Once the bootstrap is done, the compressed base system is stored in `/var/cache/jugendhackt-iso` to reuse it for the next use of the same configuration.
 
 In case the script finds a cache present for the used config file, the entire step is skipped.
 
@@ -140,3 +139,4 @@ This project was written for [Jugend hackt](https://jugendhackt.org), an Austria
 License: [EUPL-1.2](LICENSE)
 
 Author: The one with the braid <info@braid.business>
+
