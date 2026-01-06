@@ -332,7 +332,7 @@ function disk_image() {
 
 	rmdir "$LIVE_MOUNT"
 
-	echo "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
+	echo -e "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
 }
 
 if [[ ! -f "${SQUASHFS_FILE}" ]]; then
