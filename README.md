@@ -44,7 +44,6 @@ nano config
 # once create a build cache for the current configuration
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
-    -v "$(pwd)/data":"/data" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     registry.git.alpaka.space/aic/jugendhackt-iso:main \
     /jugendhackt-iso.sh build
@@ -52,7 +51,6 @@ docker run --privileged -ti --rm \
 # run the script with access to all the resources it needs and flash the image onto the USB drive
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
-    -v "$(pwd)/data":"/data" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     -v "/dev":"/dev" \
     registry.git.alpaka.space/aic/jugendhackt-iso:main \
