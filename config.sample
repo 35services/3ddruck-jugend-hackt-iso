@@ -12,13 +12,13 @@ RELEASE_MIRROR="https://deb.debian.org/debian"
 LANGUAGE="de_DE"
 
 # the keyboard language to use
+# Proudly introduced for Jh Zurich event <3
 KEYBOARD_LAYOUT="de"
 
 # the time zone to use
 TIMEZONE="Europe/Berlin"
 
 # the language task used for localization tasks, e.g. french for task-french
-# Proudly introduced for Jh Zurich event <3
 TASK_LANGUAGE="german"
 
 # additional APT packages to install
