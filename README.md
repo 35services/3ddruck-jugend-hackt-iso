@@ -49,9 +49,6 @@ docker run --privileged -ti --rm \
     registry.git.alpaka.space/aic/jugendhackt-iso:main \
     /jugendhackt-iso.sh build
 
-# specify the USB device to use. Check e.g. your Disk Utility to find out the path to the device
-export USB_DRIVE=/dev/sdX
-
 # run the script with access to all the resources it needs and flash the image onto the USB drive
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
@@ -59,43 +56,15 @@ docker run --privileged -ti --rm \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     -v "/dev":"/dev" \
     registry.git.alpaka.space/aic/jugendhackt-iso:main \
-    /jugendhackt-iso.sh flash $USB_DRIVE
+    /jugendhackt-iso.sh image
 ```
 
-### Flash multiple sticks at once using Docker
+### Flash the image to a USB drive
 
-```shell
-# pull the most recent docker image
-docker pull registry.git.alpaka.space/aic/jugendhackt-iso:main
-
-# once build the cache
-docker run --privileged -ti --rm \
-    -v "$(pwd)/config":"/config" \
-    -v "$(pwd)/data":"/data" \
-    -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
-    registry.git.alpaka.space/aic/jugendhackt-iso:main \
-    /jugendhackt-iso.sh build
-
-# flash image onto all USB drives
-# IMPARTANT: replace the list of /dev/sdX with all the drives you want to flash
-for USB_DRIVE in /dev/sdb /dev/sdc /dev/sdd /dev/sdN; do
-    docker run --privileged -d --rm \
-        -v "$(pwd)/config":"/config" \
-        -v "$(pwd)/data":"/data" \
-        -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
-        -v "/dev":"/dev" \
-        registry.git.alpaka.space/aic/jugendhackt-iso:main \
-        /jugendhackt-iso.sh flash $USB_DRIVE
-done
-
-# check whether build finished
-docker ps
-
-# repeat this command until you see no more running container with the jugendhackt-iso container
-docker ps
-
-# once all containers stopped, you can unplug all USB drives and repeat the for loop with your new batch
-```
+1. Download [Etcher](https://etcher.balena.io/)
+2. Select the disk image path displayed in the output of the last command
+3. Select the USB drive
+4. Flash
 
 ### Standalone using system libraries
 
@@ -105,8 +74,8 @@ The script will check all dependencies and tell you how to install them.
 # create build cache
 sudo ./jugendhackt-iso.sh build
 
-# replace <usb-device> with the device path of your USB drive, e.g. /dev/sdb
-sudo ./jugendhackt-iso.sh flash <usb-device>
+# create an image file to flash on USB drives
+sudo ./jugendhackt-iso.sh image
 ```
 
 The environment variable `CACHE_PATH` controls where the resulting squashfs image will be stored and read from. If unset, it will default to `/var/cache/jugendhackt-iso`.
@@ -120,7 +89,7 @@ As of now, it's not possible to build on AArch64 since we need to execute native
 The jugendhackt-iso script passes two general stages :
 
 1. boostrap a base system according to a config file or use a cached version
-2. copy the base system on a USB drive, make it bootable, persistent and Secure Boot compatible
+2. creata disk image to simply flash on a USB drive, make it bootable, persistent and Secure Boot compatible
 
 The first stage uses `deboostrap` in order to boostrap a Debian base system. Next, APT packages and flatpaks are installed according to the configuration and locale settings are applied.
 
@@ -128,9 +97,9 @@ Once the bootstrap is done, the compressed base system is stored in `/var/cache/
 
 In case the script finds a cache present for the used config file, the entire step is skipped.
 
-The second stage populates the available system on the specified stick. It is therefore completely formatted with four partitions being created : a BIOS grub partition for legacy boot, an EFI system partition for UEFI boot, a root partition containing the bootloader, the kernel and the compressed system as well as an empty partition used for persistance.
+The second stage populates the available system to a disk image file. It is therefore completely formatted with four partitions being created : a BIOS grub partition for legacy boot, an EFI system partition for UEFI boot, a root partition containing the bootloader, the kernel and the compressed system as well as an empty partition used for persistance.
 
-Once all this data is populated, the script syncs the USB drive and you can proceed with the next ones.
+Once the image is created, you can use a tool like [Etcher](https://etcher.balena.io/) or the `dd` command to flash it onto your USB drives.
 
 ## Legal
 

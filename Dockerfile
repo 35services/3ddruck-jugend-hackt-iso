@@ -1,7 +1,7 @@
 FROM debian:sid
 
 RUN apt-get update && \
-    apt-get install -y debootstrap gdisk parted dosfstools squashfs-tools udev bubblewrap && \
+    apt-get install -y debootstrap gdisk e2fsprogs dosfstools squashfs-tools udev bubblewrap util-linux && \
     rm -rf /var/cache/apt/*
 
 COPY jugendhackt-iso.sh /jugendhackt-iso.sh

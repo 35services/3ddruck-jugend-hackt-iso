@@ -3,24 +3,23 @@
 set -e
 
 STAGE=$1
-USB=$2
 
-if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" || "flash" == "$STAGE" && -z "$USB" ]]; then
+if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 	echo "Bootstraps a persistent Debian-based live system on a USB stick"
 	echo ""
 	echo "1. Build a the cache for later bulk flash"
 	echo "> jugendhackt-iso.sh build"
 	echo ""
-	echo "2. Flash the cached build onto a given USB drive"
-	echo "> jugendhackt-iso.sh flash <usb-device>"
+	echo "2. Create a disk image to flash on a USB drive"
+	echo "> jugendhackt-iso.sh image"
 	echo ""
 	echo "Author: The one with the braid <info@braid.business>"
 	exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- gdisk (gdisk)\n- parted (parted)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)\n - bwrap (bubblewrap)"
+REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
 
-for COMMAND in debootstrap gdisk parted mkfs.msdos unsquashfs mksquashfs udevadm bwrap; do
+for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos unsquashfs mksquashfs udevadm bwrap fallocate; do
 	if [[ ! -x "$(command -v $COMMAND)" ]]; then
 		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
 		exit 1
@@ -43,6 +42,7 @@ CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
 IDENTIFIER="${CONFIG_CHECKSUM}"
 CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
 SQUASHFS_FILE="${CACHE_PATH}/${IDENTIFIER}.squashfs"
+IMAGE_FILE="${CACHE_PATH}/${IDENTIFIER}.img"
 
 if [[ -z "$KEYBOARD_LAYOUT" ]]; then
   KEYBOARD_LAYOUT="us"
@@ -155,7 +155,7 @@ function build_squashfs() {
     echo "$SELECTION" | chroot_env "$DEBOOTSTRAP_ROOT" debconf-set-selections
   done
 
-  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak fwupd apt-transport-https hunspell task-$TASK_LANGUAGE $([[ $TASK_LANGUAGE == "english" ]] && echo "" || echo "task-$TASK_LANGUAGE-desktop") ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak firefox fwupd apt-transport-https hunspell task-$TASK_LANGUAGE $([[ $TASK_LANGUAGE == "english" ]] && echo "" || echo "task-$TASK_LANGUAGE-desktop") ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils
 
   echo "Installing additional packages"
   chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
@@ -188,8 +188,15 @@ LIVE_USER_FULLNAME="Jugend hackt Teilnehmer*in"
 LIVE_USER_DEFAULT_GROUPS="adm,cdrom,sudo,dip,plugdev,lpadmin,sambashare,operator,dialout,audio,video,debian-tor,lxd,docker"
 LIVE_LOCALES="$LANGUAGE.UTF-8"
 LIVE_TIMEZONE="$TIMEZONE"
-LIVE_KEYBOARD_LAYOUTS="$KAYBOARD_LAYOUT"
+LIVE_KEYBOARD_LAYOUTS="$KEYBOARD_LAYOUT"
 EOF
+
+  cp data/grow-persistence.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/grow-persistence.sh"
+  chmod 744 "$DEBOOTSTRAP_ROOT/usr/local/bin/grow-persistence.sh"
+  cp data/grow-persistence.service "$DEBOOTSTRAP_ROOT/etc/systemd/system/grow-persistence.service"
+  chmod 664 "$DEBOOTSTRAP_ROOT/etc/systemd/system/grow-persistence.service"
+
+  ln -s /etc/systemd/system/grow-persistence.service "$DEBOOTSTRAP_ROOT/etc/systemd/system/multi-user.target.wants/grow-persistence.service"
 
   mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup" "$DEBOOTSTRAP_ROOT/etc/resolv.conf"
 
@@ -205,71 +212,39 @@ EOF
   rm -rf "$DEBOOTSTRAP_ROOT"
 }
 
-function flash_usb() {
-  DEVICE="${USB}"
+function disk_image() {
+  SQUASHFS_SIZE="$(du -s "${SQUASHFS_FILE}" | cut -f1)"
+  PART_2_SIZE="$((1000000 + SQUASHFS_SIZE))"
 
-  if [[ $USB == /dev/nvme* || $USB == /dev/loop* ]]; then
-    DEVICE_BIOS="${DEVICE}p4"
-    DEVICE_ESP="${DEVICE}p1"
-    DEVICE_CDROM="${DEVICE}p2"
-    DEVICE_PERSISTENCE="${DEVICE}p3"
-  elif [[ $USB == /dev/sd* ]]; then
-    DEVICE_BIOS="${DEVICE}4"
-    DEVICE_ESP="${DEVICE}1"
-    DEVICE_CDROM="${DEVICE}2"
-    DEVICE_PERSISTENCE="${DEVICE}3"
-  else
-    echo "Device path $DEVICE unknown. Expected /dev/sdX, /dev/nvmeXnY or /dev/loopX."
-    exit 1
-  fi
+  IMAGE_SIZE="$((PART_2_SIZE * 1000))"
 
-  echo "Creating mount points..."
+  echo "Creating loop device..."
 
-  USB_MOUNT="$1"
-  SQUASHFS_TMP="$2"
+  fallocate -l "$((IMAGE_SIZE + 1000000000))" "${IMAGE_FILE}"
+  losetup -vfP "${IMAGE_FILE}"
 
-	SQUASHFS_SIZE="$(du -s "${SQUASHFS_FILE}" | cut -f1)"
+  OUTPUT="$(losetup -a | grep "${IMAGE_FILE}")"
+  SPLIT=(${OUTPUT//:/ })
 
-	PART_2_SIZE="$((1000000 + SQUASHFS_SIZE))"
+  DEVICE=${SPLIT[0]}
 
-	echo "Preparing temporary files..."
+  DEVICE_BIOS="${DEVICE}p4"
+  DEVICE_ESP="${DEVICE}p1"
+  DEVICE_CDROM="${DEVICE}p2"
+  DEVICE_PERSISTENCE="${DEVICE}p3"
 
-	parted --script "$DEVICE" mklabel gpt
-	sync "$DEVICE"
+	echo "Partitioning disk..."
 
-	(
-		echo o
-		echo y
-
-		echo n
-		echo 4
-		echo "2048"
-		echo "+1M"
-		echo "ef02"
-
-		echo n
-		echo 1
-		echo ""
-		echo "+512M"
-		echo "ef00"
-
-		echo n
-		echo 2
-		echo ""
-		echo "+$(($PART_2_SIZE + 1024))"K
-		echo ""
-
-		echo n
-		echo 3
-		echo ""
-		echo ""
-		echo ""
-
-		echo w
-		echo Y
-	) | gdisk "$DEVICE"
-
-	parted --script "$DEVICE" set 4 bios_grub on
+	# create empty partition table
+	sgdisk "$DEVICE" -o
+	# create GRUB partition in the first 2048 sectors
+	sgdisk "$DEVICE" -a 1 --new 4:34:2047 --typecode 4:ef02
+	# create ESP
+	sgdisk "$DEVICE" --new 1::+512M --typecode 1:ef00
+	# create live boot partition
+	sgdisk "$DEVICE" --new "2::+${PART_2_SIZE}K" --attributes 2:set:63
+	# create persistence partition with SD_GPT_FLAG_GROWFS flag
+	sgdisk "$DEVICE" --new 3::0 --attributes 3:set:59
 
 	sync "$DEVICE"
 
@@ -283,6 +258,11 @@ function flash_usb() {
 	tune2fs -O ^metadata_csum_seed "${DEVICE_CDROM}"
 	tune2fs -O ^metadata_csum_seed "${DEVICE_PERSISTENCE}"
 
+	echo "Creating mount points..."
+
+	LIVE_MOUNT="$1"
+	SQUASHFS_TMP="$2"
+
 	PERSISTENCE_TMP="$(mktemp -d)"
 
 	mount "${DEVICE_PERSISTENCE}" "${PERSISTENCE_TMP}"
@@ -291,32 +271,32 @@ function flash_usb() {
 	umount "${PERSISTENCE_TMP}"
 	rmdir "${PERSISTENCE_TMP}"
 
-	echo "Copying live media"
+	echo "Copying live media..."
 
-	mount "${DEVICE_CDROM}" "${USB_MOUNT}"
+	mount "${DEVICE_CDROM}" "${LIVE_MOUNT}"
 
-	mkdir "${USB_MOUNT}/.live"
-	chmod 700 "${USB_MOUNT}/.live"
+	mkdir "${LIVE_MOUNT}/.live"
+	chmod 700 "${LIVE_MOUNT}/.live"
 
-	cp "${SQUASHFS_FILE}" "${USB_MOUNT}/.live/filesystem.squashfs"
+	cp "${SQUASHFS_FILE}" "${LIVE_MOUNT}/.live/filesystem.squashfs"
 
-	echo "Copying kernel and initramfs"
+	echo "Copying kernel and initramfs..."
 
 	LINUX_TMP="$(mktemp -u)"
 
 	unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
 
-	cp "${LINUX_TMP}/boot/vmlinuz"* "${USB_MOUNT}/.live/vmlinuz"
-	cp "${LINUX_TMP}/boot/initrd.img"* "${USB_MOUNT}/.live/initrd.img"
+	cp "${LINUX_TMP}/boot/vmlinuz"* "${LIVE_MOUNT}/.live/vmlinuz"
+	cp "${LINUX_TMP}/boot/initrd.img"* "${LIVE_MOUNT}/.live/initrd.img"
 
 	rm -rf "${LINUX_TMP}"
 
-	echo "Installing grub"
+	echo "Installing grub..."
 
-	mkdir -p "${USB_MOUNT}/.boot/grub"
-	chmod 700 "${USB_MOUNT}/.boot"
+	mkdir -p "${LIVE_MOUNT}/.boot/grub"
+	chmod 700 "${LIVE_MOUNT}/.boot"
 
-	cp data/grub.cfg "${USB_MOUNT}/.boot/grub/grub.cfg"
+	cp data/grub.cfg "${LIVE_MOUNT}/.boot/grub/grub.cfg"
 
 	CDROM_TMP="${SQUASHFS_TMP}/cdrom"
 	ESP_TMP="${SQUASHFS_TMP}/boot/efi"
@@ -324,13 +304,13 @@ function flash_usb() {
 	mkdir -p "${ESP_TMP}" || true
 	mkdir -p "${CDROM_TMP}" || true
 
-	mount -o ro "${USB_MOUNT}/.live/filesystem.squashfs" "${SQUASHFS_TMP}"
+	mount -o ro "${LIVE_MOUNT}/.live/filesystem.squashfs" "${SQUASHFS_TMP}"
 
 	mount_chroot "$SQUASHFS_TMP"
 	mount "${DEVICE_ESP}" "${ESP_TMP}"
 	mount "${DEVICE_CDROM}" "${CDROM_TMP}"
 
-	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${USB}"
+	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${DEVICE}"
 	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
 
 	umount "${ESP_TMP}"
@@ -342,13 +322,17 @@ function flash_usb() {
 
 	echo "Syncing drive..."
 
-	sync "$USB"
+	sync "$DEVICE"
 
 	echo "Removing temporary files..."
 
-	umount "$USB_MOUNT"
+	umount "$LIVE_MOUNT"
 
-	rmdir "$USB_MOUNT"
+	losetup -D "${DEVICE}"
+
+	rmdir "$LIVE_MOUNT"
+
+	echo "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
 }
 
 if [[ ! -f "${SQUASHFS_FILE}" ]]; then
@@ -370,18 +354,18 @@ if [[ ! -f "${SQUASHFS_FILE}" ]]; then
 
 else
 
-	if [[ "flash" != "$STAGE" ]]; then
+	if [[ "image" != "$STAGE" ]]; then
 		echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
 		exit 1
 	fi
 
-	USB_MOUNT="$(mktemp -d)"
+	LIVE_MOUNT="$(mktemp -d)"
 	SQUASHFS_TMP="$(mktemp -d)"
 
-	flash_usb "$USB_MOUNT" "$SQUASHFS_TMP"
+	disk_image "$LIVE_MOUNT" "$SQUASHFS_TMP"
 
 	if [ "$?" -ne 0 ]; then
-    echo -e "Error flashing USB drive.\n\nPleas check $USB_MOUNT and $SQUASHFS_TMP for details."
+    echo -e "Error creating USB image.\n\nPleas check $LIVE_MOUNT and $SQUASHFS_TMP for details."
     umount_chroot_env "$SQUASHFS_TMP"
     exit 1
   fi

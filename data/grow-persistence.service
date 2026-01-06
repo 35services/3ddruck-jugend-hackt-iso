@@ -1,0 +1,9 @@
+[Unit]
+Description=Grow the persistence partition during Startup
+
+[Service]
+ExecStart=/usr/local/bin/grow-persistence.sh
+
+[Install]
+WantedBy=default.target
+
