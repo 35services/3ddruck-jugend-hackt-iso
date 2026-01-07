@@ -4,68 +4,88 @@ set -e
 
 STAGE=$1
 
+function help () {
+  echo "Bootstraps a persistent Debian-based live system on a USB stick"
+  echo ""
+  echo "1. Build a the cache for later bulk flash"
+  echo "> jugendhackt-iso.sh build"
+  echo ""
+  echo "2. Create a disk image to flash on a USB drive"
+  echo "> jugendhackt-iso.sh image"
+  echo ""
+  echo "3. (Optional) Test your built image using QEMU"
+  echo "> jugendhackt-iso.sh qemu (uefi|bios)"
+  echo ""
+  echo "Author: The one with the braid <info@braid.business>"
+}
+
 if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
-	echo "Bootstraps a persistent Debian-based live system on a USB stick"
-	echo ""
-	echo "1. Build a the cache for later bulk flash"
-	echo "> jugendhackt-iso.sh build"
-	echo ""
-	echo "2. Create a disk image to flash on a USB drive"
-	echo "> jugendhackt-iso.sh image"
-	echo ""
-	echo "Author: The one with the braid <info@braid.business>"
-	exit 0
+  help
+  exit 0
 fi
 
-REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
+function check_dependencies() {
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
 
-for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos unsquashfs mksquashfs udevadm bwrap fallocate; do
-	if [[ ! -x "$(command -v $COMMAND)" ]]; then
-		echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
-		exit 1
-	fi
-done
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos unsquashfs mksquashfs udevadm bwrap fallocate; do
+    if [[ ! -x "$(command -v $COMMAND)" ]]; then
+      echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
+      exit 1
+    fi
+  done
+}
 
-if [[ ! -f config ]]; then
-	echo "Please copy ./config.sample to ./config and adjust it to your needs"
-	exit 1
-fi
+function load_config () {
+  if [[ ! -f config ]]; then
+    echo "Please copy ./config.sample to ./config and adjust it to your needs"
+    exit 1
+  fi
 
-source "./config"
+  source "./config"
 
-if [[ $EUID != 0 ]]; then
-	echo "Please run this script as root in order to access block devices."
-	exit 1
-fi
+  CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
+  IDENTIFIER="${CONFIG_CHECKSUM}"
+  CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
+  SQUASHFS_FILE="${CACHE_PATH}/${IDENTIFIER}.squashfs"
+  IMAGE_FILE="${CACHE_PATH}/${IDENTIFIER}.img"
 
-CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
-IDENTIFIER="${CONFIG_CHECKSUM}"
-CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
-SQUASHFS_FILE="${CACHE_PATH}/${IDENTIFIER}.squashfs"
-IMAGE_FILE="${CACHE_PATH}/${IDENTIFIER}.img"
+  if [[ -z "$KEYBOARD_LAYOUT" ]]; then
+    KEYBOARD_LAYOUT="us"
+  fi
 
-if [[ -z "$KEYBOARD_LAYOUT" ]]; then
-  KEYBOARD_LAYOUT="us"
-fi
+  if [[ -z "$TIMEZONE" ]]; then
+    TIMEZONE="UTC"
+  fi
 
-if [[ -z "$TIMEZONE" ]]; then
-  TIMEZONE="UTC"
-fi
+  if [[ -z "$LANGUAGE" ]]; then
+    LANGUAGE="en_US"
+  fi
 
-if [[ -z "$LANGUAGE" ]]; then
-  LANGUAGE="en_US"
-fi
+  if [[ -z "$TASK_LANGUAGE" ]]; then
+    TASK_LANGUAGE="english"
+  fi
+}
 
-if [[ -z "$TASK_LANGUAGE" ]]; then
-  TASK_LANGUAGE="english"
-fi
+function check_root () {
+  if [[ $EUID != 0 ]]; then
+    echo "Please run this script as root in order to create a system image."
+    exit 1
+  fi
+}
+
+function check_non_root () {
+  if [[ $EUID == 0 ]]; then
+    echo "Please run this script without root privileges in order to access KVM."
+    exit 1
+  fi
+}
 
 function mount_chroot() {
   CHROOT="$1"
 
   # self-bind in order to fix "bwrap: Failed to make master / slave: Invalid argument"
   # see https://github.com/flatpak/flatpak/issues/703#issuecomment-293250243
-	mount --bind "${CHROOT}" "${CHROOT}"
+  mount --bind "${CHROOT}" "${CHROOT}"
 
   mount proc "$CHROOT/proc" -t proc -o nosuid,noexec,nodev
   mount sys "$CHROOT/sys" -t sysfs -o nosuid,noexec,nodev,ro
@@ -89,37 +109,37 @@ function umount_chroot() {
 }
 
 chroot_env () {
-	chroot "$1" \
-		/usr/bin/env -i \
-		DEBIAN_FRONTEND=noninteractive \
-		PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
-		XDG_CONFIG_DIRS=/etc/xdg \
-		DEFAULT_XDG_CONFIG_DIRS=/etc/xdg \
-		XDG_DATA_DIRS=/usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
-		XDG_DATA_HOME=/usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
-		DEFAULT_XDG_DATA_DIRS=/usr/local/share/:/usr/share/ \
-		"${@:2}"
+  chroot "$1" \
+    /usr/bin/env -i \
+    DEBIAN_FRONTEND=noninteractive \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
+    XDG_CONFIG_DIRS=/etc/xdg \
+    DEFAULT_XDG_CONFIG_DIRS=/etc/xdg \
+    XDG_DATA_DIRS=/usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
+    XDG_DATA_HOME=/usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
+    DEFAULT_XDG_DATA_DIRS=/usr/local/share/:/usr/share/ \
+    "${@:2}"
 }
 
 bwrap_env () {
-	bwrap \
-		--bind "$1" / \
-		--dev /dev \
-		--proc /proc \
-		--bind /sys /sys \
-		--bind /run /run \
-		--clearenv \
-		--setenv DEBIAN_FRONTEND noninteractive \
-		--setenv XDG_CURRENT_DESKTOP GNOME \
-		--setenv GDMSESSION gnome \
-		--setenv DESKTOP_SESSION gnome \
-		--setenv PATH /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
-		--setenv XDG_CONFIG_DIRS /etc/xdg \
-		--setenv DEFAULT_XDG_CONFIG_DIRS /etc/xdg \
-		--setenv XDG_DATA_DIRS /usr/share/gnome:/home/user/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share \
-		--setenv XDG_DATA_HOME /usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
-		--setenv DEFAULT_XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
-		"${@:2}"
+  bwrap \
+    --bind "$1" / \
+    --dev /dev \
+    --proc /proc \
+    --bind /sys /sys \
+    --bind /run /run \
+    --clearenv \
+    --setenv DEBIAN_FRONTEND noninteractive \
+    --setenv XDG_CURRENT_DESKTOP GNOME \
+    --setenv GDMSESSION gnome \
+    --setenv DESKTOP_SESSION gnome \
+    --setenv PATH /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
+    --setenv XDG_CONFIG_DIRS /etc/xdg \
+    --setenv DEFAULT_XDG_CONFIG_DIRS /etc/xdg \
+    --setenv XDG_DATA_DIRS /usr/share/gnome:/home/user/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share \
+    --setenv XDG_DATA_HOME /usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
+    --setenv DEFAULT_XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
+    "${@:2}"
 }
 
 
@@ -166,9 +186,6 @@ function build_squashfs() {
   chroot_env "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
 
   echo "Installing additional flatpaks..."
-
-  # https://deb.li/bubblewrap
-  sysctl kernel.unprivileged_userns_clone=1
 
   chroot_env "$DEBOOTSTRAP_ROOT" sh -c 'grep /usr/bin/bwrap /var/lib/dpkg/statoverride || dpkg-statoverride --update --add root root 0755 /usr/bin/bwrap'
   echo kernel.unprivileged_userns_clone=1 > "$DEBOOTSTRAP_ROOT/etc/sysctl.d/50-bubblewrap.conf"
@@ -233,145 +250,219 @@ function disk_image() {
   DEVICE_CDROM="${DEVICE}p2"
   DEVICE_PERSISTENCE="${DEVICE}p3"
 
-	echo "Partitioning disk..."
+  echo "Partitioning disk..."
 
-	# create empty partition table
-	sgdisk "$DEVICE" -o
-	# create GRUB partition in the first 2048 sectors
-	sgdisk "$DEVICE" -a 1 --new 4:34:2047 --typecode 4:ef02
-	# create ESP
-	sgdisk "$DEVICE" --new 1::+512M --typecode 1:ef00
-	# create live boot partition
-	sgdisk "$DEVICE" --new "2::+${PART_2_SIZE}K" --attributes 2:set:63
-	# create persistence partition with SD_GPT_FLAG_GROWFS flag
-	sgdisk "$DEVICE" --new 3::0 --attributes 3:set:59
+  # create empty partition table
+  sgdisk "$DEVICE" -o
+  # create GRUB partition in the first 2048 sectors
+  sgdisk "$DEVICE" -a 1 --new 4:34:2047 --typecode 4:ef02
+  # create ESP
+  sgdisk "$DEVICE" --new 1::+512M --typecode 1:ef00
+  # create live boot partition
+  sgdisk "$DEVICE" --new "2::+${PART_2_SIZE}K" --attributes 2:set:63
+  # create persistence partition with SD_GPT_FLAG_GROWFS flag
+  sgdisk "$DEVICE" --new 3::0 --attributes 3:set:59
 
-	sync "$DEVICE"
+  sync "$DEVICE"
 
-	echo "Bootstrapping filesystems..."
+  echo "Bootstrapping filesystems..."
 
-	yes | mkfs.msdos -n "ESP" "${DEVICE_ESP}"
-	yes | mkfs.msdos -n "BIOS" "${DEVICE_BIOS}"
-	mkfs.ext4 -F -L "BOOT" "${DEVICE_CDROM}"
-	mkfs.ext4 -F -L "Jugend-hackt-USB" "${DEVICE_PERSISTENCE}"
+  yes | mkfs.msdos -n "ESP" "${DEVICE_ESP}"
+  yes | mkfs.msdos -n "BIOS" "${DEVICE_BIOS}"
+  mkfs.ext4 -F -L "BOOT" "${DEVICE_CDROM}"
+  mkfs.ext4 -F -L "Jugend-hackt-USB" "${DEVICE_PERSISTENCE}"
 
-	tune2fs -O ^metadata_csum_seed "${DEVICE_CDROM}"
-	tune2fs -O ^metadata_csum_seed "${DEVICE_PERSISTENCE}"
+  tune2fs -O ^metadata_csum_seed "${DEVICE_CDROM}"
+  tune2fs -O ^metadata_csum_seed "${DEVICE_PERSISTENCE}"
 
-	echo "Creating mount points..."
+  echo "Creating mount points..."
 
-	LIVE_MOUNT="$1"
-	SQUASHFS_TMP="$2"
+  LIVE_MOUNT="$1"
+  SQUASHFS_TMP="$2"
 
-	PERSISTENCE_TMP="$(mktemp -d)"
+  PERSISTENCE_TMP="$(mktemp -d)"
 
-	mount "${DEVICE_PERSISTENCE}" "${PERSISTENCE_TMP}"
-	cp data/persistence.conf "${PERSISTENCE_TMP}"
+  mount "${DEVICE_PERSISTENCE}" "${PERSISTENCE_TMP}"
+  cp data/persistence.conf "${PERSISTENCE_TMP}"
 
-	umount "${PERSISTENCE_TMP}"
-	rmdir "${PERSISTENCE_TMP}"
+  umount "${PERSISTENCE_TMP}"
+  rmdir "${PERSISTENCE_TMP}"
 
-	echo "Copying live media..."
+  echo "Copying live media..."
 
-	mount "${DEVICE_CDROM}" "${LIVE_MOUNT}"
+  mount "${DEVICE_CDROM}" "${LIVE_MOUNT}"
 
-	mkdir "${LIVE_MOUNT}/.live"
-	chmod 700 "${LIVE_MOUNT}/.live"
+  mkdir "${LIVE_MOUNT}/.live"
+  chmod 700 "${LIVE_MOUNT}/.live"
 
-	cp "${SQUASHFS_FILE}" "${LIVE_MOUNT}/.live/filesystem.squashfs"
+  cp "${SQUASHFS_FILE}" "${LIVE_MOUNT}/.live/filesystem.squashfs"
 
-	echo "Copying kernel and initramfs..."
+  echo "Copying kernel and initramfs..."
 
-	LINUX_TMP="$(mktemp -u)"
+  LINUX_TMP="$(mktemp -u)"
 
-	unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
+  unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
 
-	cp "${LINUX_TMP}/boot/vmlinuz"* "${LIVE_MOUNT}/.live/vmlinuz"
-	cp "${LINUX_TMP}/boot/initrd.img"* "${LIVE_MOUNT}/.live/initrd.img"
+  cp "${LINUX_TMP}/boot/vmlinuz"* "${LIVE_MOUNT}/.live/vmlinuz"
+  cp "${LINUX_TMP}/boot/initrd.img"* "${LIVE_MOUNT}/.live/initrd.img"
 
-	rm -rf "${LINUX_TMP}"
+  rm -rf "${LINUX_TMP}"
 
-	echo "Installing grub..."
+  echo "Installing grub..."
 
-	mkdir -p "${LIVE_MOUNT}/.boot/grub"
-	chmod 700 "${LIVE_MOUNT}/.boot"
+  mkdir -p "${LIVE_MOUNT}/.boot/grub"
+  chmod 700 "${LIVE_MOUNT}/.boot"
 
-	cp data/grub.cfg "${LIVE_MOUNT}/.boot/grub/grub.cfg"
+  cp data/grub.cfg "${LIVE_MOUNT}/.boot/grub/grub.cfg"
 
-	CDROM_TMP="${SQUASHFS_TMP}/cdrom"
-	ESP_TMP="${SQUASHFS_TMP}/boot/efi"
+  CDROM_TMP="${SQUASHFS_TMP}/cdrom"
+  ESP_TMP="${SQUASHFS_TMP}/boot/efi"
 
-	mkdir -p "${ESP_TMP}" || true
-	mkdir -p "${CDROM_TMP}" || true
+  mkdir -p "${ESP_TMP}" || true
+  mkdir -p "${CDROM_TMP}" || true
 
-	mount -o ro "${LIVE_MOUNT}/.live/filesystem.squashfs" "${SQUASHFS_TMP}"
+  mount -o ro "${LIVE_MOUNT}/.live/filesystem.squashfs" "${SQUASHFS_TMP}"
 
-	mount_chroot "$SQUASHFS_TMP"
-	mount "${DEVICE_ESP}" "${ESP_TMP}"
-	mount "${DEVICE_CDROM}" "${CDROM_TMP}"
+  mount_chroot "$SQUASHFS_TMP"
+  mount "${DEVICE_ESP}" "${ESP_TMP}"
+  mount "${DEVICE_CDROM}" "${CDROM_TMP}"
 
-	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${DEVICE}"
-	chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
+  chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${DEVICE}"
+  chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
 
-	umount "${ESP_TMP}"
-	umount "${CDROM_TMP}"
-	umount_chroot "$SQUASHFS_TMP"
-	umount "${SQUASHFS_TMP}"
+  umount "${ESP_TMP}"
+  umount "${CDROM_TMP}"
+  umount_chroot "$SQUASHFS_TMP"
+  umount "${SQUASHFS_TMP}"
 
-	rm -rf "${SQUASHFS_TMP}"
+  rm -rf "${SQUASHFS_TMP}"
 
-	echo "Syncing drive..."
+  echo "Syncing drive..."
 
-	sync "$DEVICE"
+  sync "$DEVICE"
 
-	echo "Removing temporary files..."
+  echo "Removing temporary files..."
 
-	umount "$LIVE_MOUNT"
+  umount "$LIVE_MOUNT"
 
-	losetup -D "${DEVICE}"
+  losetup -D "${DEVICE}"
 
-	rmdir "$LIVE_MOUNT"
+  rmdir "$LIVE_MOUNT"
 
-	echo -e "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
+  echo -e "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
 }
 
-if [[ ! -f "${SQUASHFS_FILE}" ]]; then
-
-  if [[ "build" != "$STAGE" ]]; then
-    echo "${SQUASHFS_FILE} not found. Please run first : $0 build"
+function qemu_boot () {
+  if [[ ! -x "$(command -v qemu-system-x86_64)" ]]; then
+    echo -e "QEMU is not installed.\nPlease install the qemu-system-x86 package."
     exit 1
   fi
 
-  DEBOOTSTRAP_ROOT="$(mktemp -d)"
-
-	build_squashfs "$DEBOOTSTRAP_ROOT"
-
-	if [ "$?" -ne 0 ]; then
-    echo -e "Error building squashfs.\n\nYou can check check $DEBOOTSTRAP_ROOT for details."
-    umount_chroot_env "$DEBOOTSTRAP_ROOT"
+  if ! id -nG "$USER" | grep -qw kvm; then
+    echo -e "You need to be part of the kvm group in order to boot the disk image using QEMU.\nPlease first run:\nsudo usermod -aG kvm \$USER\nnewgrp kvm"
     exit 1
   fi
 
-else
+  case "$MODE" in
+    "uefi")
+      CODE_PREDICTS="/usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/x64/OVMF_CODE.4m.fd /usr/share/OVMF/OVMF_CODE_4M.secboot.fd /usr/share/OVMF/x64/OVMF_CODE.secboot.4m.fd"
+      for f in ${CODE_PREDICTS}; do
+        if [[ -f "$f" ]]; then
+          CODE_FD="$f"
+        fi
+      done
 
-	if [[ "image" != "$STAGE" ]]; then
-		echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
-		exit 1
-	fi
+      VARS_PREDICTS="/usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/x64/OVMF_VARS.4m.fd"
+      for f in ${VARS_PREDICTS}; do
+        if [[ -f "$f" ]]; then
+          VARS_FD="$f"
+        fi
+      done
 
-	LIVE_MOUNT="$(mktemp -d)"
-	SQUASHFS_TMP="$(mktemp -d)"
+      if [[ -z "$CODE_FD" || -z "$VARS_FD" ]]; then
+        echo -e "Could not find any matching UEFI files.\nPlease install the ovmf package."
+        exit 1
+      fi
 
-	disk_image "$LIVE_MOUNT" "$SQUASHFS_TMP"
+      BIOS_FD_FLAGS="-drive if=pflash,format=raw,readonly=on,file=${CODE_FD} -drive if=pflash,format=raw,file=${VARS_FD}"
+      ;;
+    "bios")
+      BISO_FD_FLAGS=""
+  esac
 
-	if [ "$?" -ne 0 ]; then
-    echo -e "Error creating USB image.\n\nPleas check $LIVE_MOUNT and $SQUASHFS_TMP for details."
-    umount_chroot_env "$SQUASHFS_TMP"
+  qemu-system-x86_64 \
+    -machine type=q35,accel=kvm \
+    -m 8G -cpu host -smp $(nproc) \
+    -display gtk -device VGA,vgamem_mb=128 \
+    -device virtio-net,netdev=vmnic -netdev user,id=vmnic \
+    -snapshot -drive file="$IMAGE_FILE" \
+    $BIOS_FD_FLAGS
+}
+
+check_dependencies
+load_config
+
+case "${STAGE}" in
+  "build")
+    check_root
+
+    if [[ -f "${SQUASHFS_FILE}" ]]; then
+      echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
+      exit 1
+    fi
+    DEBOOTSTRAP_ROOT="$(mktemp -d)"
+
+    build_squashfs "$DEBOOTSTRAP_ROOT"
+
+    if [ "$?" -ne 0 ]; then
+      echo -e "Error building squashfs.\n\nYou can check check $DEBOOTSTRAP_ROOT for details."
+      umount_chroot_env "$DEBOOTSTRAP_ROOT"
+      exit 1
+    fi
+    ;;
+  "image")
+    check_root
+
+    if [[ ! -f "${SQUASHFS_FILE}" ]]; then
+      echo "${SQUASHFS_FILE} not found. Please run first : $0 build"
+      exit 1
+    fi
+
+    LIVE_MOUNT="$(mktemp -d)"
+    SQUASHFS_TMP="$(mktemp -d)"
+
+    disk_image "$LIVE_MOUNT" "$SQUASHFS_TMP"
+
+    if [ "$?" -ne 0 ]; then
+      echo -e "Error creating USB image.\n\nPleas check $LIVE_MOUNT and $SQUASHFS_TMP for details."
+      umount_chroot_env "$SQUASHFS_TMP"
+      exit 1
+    fi
+    ;;
+  "qemu")
+    check_non_root
+
+    if [[ ! -f "${IMAGE_FILE}" ]]; then
+      echo "${IMAGE_FILE} not found. Please run first : $0 image"
+      exit 1
+    fi
+
+    MODE="$2"
+
+    if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
+      help
+      exit 1
+    fi
+
+    qemu_boot
+    ;;
+  *)
+    help
     exit 1
-  fi
-
-fi
+    ;;
+esac
 
 echo "Done."
 
 exit
+

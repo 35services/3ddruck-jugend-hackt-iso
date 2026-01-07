@@ -41,6 +41,9 @@ nano config
 # $ sudo usermod -aG docker $USER
 # $ newgrp docker
 
+# ensure we can use bubblewrap (https://deb.li/bubblewrap)
+sudo sysctl kernel.unprivileged_userns_clone=1
+
 # once create a build cache for the current configuration
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
@@ -69,11 +72,17 @@ docker run --privileged -ti --rm \
 The script will check all dependencies and tell you how to install them.
 
 ```shell
+# ensure we can use bubblewrap (https://deb.li/bubblewrap)
+sudo sysctl kernel.unprivileged_userns_clone=1
+
 # create build cache
 sudo ./jugendhackt-iso.sh build
 
 # create an image file to flash on USB drives
 sudo ./jugendhackt-iso.sh image
+
+# test the built image using QEMU (requires at least 12 GiB of RAM on your machine)
+./jugendhackt-iso.sh qemu uefi # or bios
 ```
 
 The environment variable `CACHE_PATH` controls where the resulting squashfs image will be stored and read from. If unset, it will default to `/var/cache/jugendhackt-iso`.
