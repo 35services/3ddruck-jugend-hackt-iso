@@ -8,18 +8,8 @@ RELEASE_BASE="sid"
 # the Debian archive mirror to use for bootstrap. Does not affect running system
 RELEASE_MIRROR="https://deb.debian.org/debian"
 
-# the locale config. Supports de_AT for our beloved Jh Linz event <3 ^^
-LANGUAGE="de_DE"
-
-# the keyboard language to use
-# Proudly introduced for Jh Zurich event <3
-KEYBOARD_LAYOUT="de"
-
-# the time zone to use
-TIMEZONE="Europe/Berlin"
-
-# the language task used for localization tasks, e.g. french for task-french
-TASK_LANGUAGE="german"
+# the language tasks used for localization, e.g. french for task-french
+TASK_LANGUAGES="arabic czech croatian english french german hungarian italian polish russian serbian turkish ukrainian"
 
 # additional APT packages to install
 ADDITIONAL_PACKAGES="git vim nano firefox webext-ublock-origin-firefox libreoffice godot3 blender gimp inkscape krita fritzing android-sdk nodejs npm vlc docker.io docker-compose docker-buildx"

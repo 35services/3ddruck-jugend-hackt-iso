@@ -61,8 +61,8 @@ function load_config () {
     LANGUAGE="en_US"
   fi
 
-  if [[ -z "$TASK_LANGUAGE" ]]; then
-    TASK_LANGUAGE="english"
+  if [[ -z "$TASK_LANGUAGES" ]]; then
+    TASK_LANGUAGES="english"
   fi
 }
 
@@ -175,7 +175,14 @@ function build_squashfs() {
     echo "$SELECTION" | chroot_env "$DEBOOTSTRAP_ROOT" debconf-set-selections
   done
 
-  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak firefox fwupd apt-transport-https hunspell task-$TASK_LANGUAGE $([[ $TASK_LANGUAGE == "english" ]] && echo "" || echo "task-$TASK_LANGUAGE-desktop") ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils
+  for task in $TASK_LANGUAGES; do
+    TASK_STRING="$TASK_STRING task-$task"
+    if [[ "$task" != "english" ]]; then
+      TASK_STRING="$TASK_STRING task-$task-desktop"
+    fi
+  done
+
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak firefox fwupd apt-transport-https hunspell $TASK_STRING ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils
 
   echo "Installing additional packages"
   chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
@@ -198,16 +205,7 @@ function build_squashfs() {
   done
   bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
 
-  cat << EOF > "$DEBOOTSTRAP_ROOT/etc/live/config.conf"
-LIVE_HOSTNAME="jugendhackt"
-LIVE_USERNAME="alpaka"
-LIVE_USER_FULLNAME="Jugend hackt Teilnehmer*in"
-LIVE_USER_DEFAULT_GROUPS="adm,cdrom,sudo,dip,plugdev,lpadmin,sambashare,operator,dialout,audio,video,debian-tor,lxd,docker"
-LIVE_LOCALES="$LANGUAGE.UTF-8"
-LIVE_TIMEZONE="$TIMEZONE"
-LIVE_KEYBOARD_LAYOUTS="$KEYBOARD_LAYOUT"
-EOF
-
+  cp data/live.conf "$DEBOOTSTRAP_ROOT/etc/live/config.conf"
   cp data/grow-persistence.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/grow-persistence.sh"
   chmod 744 "$DEBOOTSTRAP_ROOT/usr/local/bin/grow-persistence.sh"
   cp data/grow-persistence.service "$DEBOOTSTRAP_ROOT/etc/systemd/system/grow-persistence.service"
