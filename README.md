@@ -24,8 +24,6 @@ Bootstraps a persistent Debian-based live system on a USB stick.
 # copy config.sample to config in the same directory
 cp config.sample config
 # check, edit and adjust the config file to your needs (open it in an editor like nano)
-# 
-# E.g. for Events in Austria, change LANGUAGE to "de_AT" <3
  
 nano config
 
