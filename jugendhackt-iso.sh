@@ -278,7 +278,7 @@ function disk_image() {
   LIVE_MOUNT="$1"
   SQUASHFS_TMP="$2"
 
-  PERSISTENCE_TMP="$(mktemp -d)"
+  PERSISTENCE_TMP="$(mktemp -p /var/tmp -d)"
 
   mount "${DEVICE_PERSISTENCE}" "${PERSISTENCE_TMP}"
   cp data/persistence.conf "${PERSISTENCE_TMP}"
@@ -297,7 +297,7 @@ function disk_image() {
 
   echo "Copying kernel and initramfs..."
 
-  LINUX_TMP="$(mktemp -u)"
+  LINUX_TMP="$(mktemp -p /var/tmp -u)"
 
   unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
 
@@ -408,13 +408,13 @@ case "${STAGE}" in
       echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
       exit 1
     fi
-    DEBOOTSTRAP_ROOT="$(mktemp -d)"
+    DEBOOTSTRAP_ROOT="$(mktemp -p /var/tmp -d)"
 
     build_squashfs "$DEBOOTSTRAP_ROOT"
 
     if [ "$?" -ne 0 ]; then
       echo -e "Error building squashfs.\n\nYou can check check $DEBOOTSTRAP_ROOT for details."
-      umount_chroot_env "$DEBOOTSTRAP_ROOT"
+      umount_chroot "$DEBOOTSTRAP_ROOT"
       exit 1
     fi
     ;;
@@ -426,14 +426,14 @@ case "${STAGE}" in
       exit 1
     fi
 
-    LIVE_MOUNT="$(mktemp -d)"
-    SQUASHFS_TMP="$(mktemp -d)"
+    LIVE_MOUNT="$(mktemp -p /var/tmp -d)"
+    SQUASHFS_TMP="$(mktemp -p /var/tmp -d)"
 
     disk_image "$LIVE_MOUNT" "$SQUASHFS_TMP"
 
     if [ "$?" -ne 0 ]; then
       echo -e "Error creating USB image.\n\nPleas check $LIVE_MOUNT and $SQUASHFS_TMP for details."
-      umount_chroot_env "$SQUASHFS_TMP"
+      umount_chroot "$SQUASHFS_TMP"
       exit 1
     fi
     ;;
