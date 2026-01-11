@@ -83,7 +83,7 @@ sudo ./jugendhackt-iso.sh image
 ./jugendhackt-iso.sh qemu uefi # or bios
 ```
 
-The environment variable `CACHE_PATH` controls where the resulting squashfs image will be stored and read from. If unset, it will default to `/var/cache/jugendhackt-iso`.
+The environment variable `CACHE_PATH` controls where the resulting erofs image will be stored and read from. If unset, it will default to `/var/cache/jugendhackt-iso`.
 
 ### Build on AArch64 / Apple Silicon / Raspberry Pi
 

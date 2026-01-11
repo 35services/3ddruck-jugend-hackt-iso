@@ -25,9 +25,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 fi
 
 function check_dependencies() {
-  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- unsquashfs, mksquashfs (squashfs-tools)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
 
-  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos unsquashfs mksquashfs udevadm bwrap fallocate; do
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate; do
     if [[ ! -x "$(command -v $COMMAND)" ]]; then
       echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
       exit 1
@@ -46,7 +46,7 @@ function load_config () {
   CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
   IDENTIFIER="${CONFIG_CHECKSUM}"
   CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
-  SQUASHFS_FILE="${CACHE_PATH}/${IDENTIFIER}.squashfs"
+  EROFS_FILE="${CACHE_PATH}/${IDENTIFIER}.erofs"
   IMAGE_FILE="${CACHE_PATH}/${IDENTIFIER}.img"
 
   if [[ -z "$KEYBOARD_LAYOUT" ]]; then
@@ -143,7 +143,7 @@ bwrap_env () {
 }
 
 
-function build_squashfs() {
+function build_erofs() {
   DEBOOTSTRAP_ROOT="$1"
 
   echo "Bootstrapping live environment..."
@@ -182,7 +182,7 @@ function build_squashfs() {
     fi
   done
 
-  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak fwupd apt-transport-https hunspell $TASK_STRING ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak fwupd apt-transport-https hunspell $TASK_STRING ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils erofs-utils
 
   echo "Installing additional packages"
   chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
@@ -210,8 +210,11 @@ function build_squashfs() {
   chmod 744 "$DEBOOTSTRAP_ROOT/usr/local/bin/grow-persistence.sh"
   cp data/grow-persistence.service "$DEBOOTSTRAP_ROOT/etc/systemd/system/grow-persistence.service"
   chmod 664 "$DEBOOTSTRAP_ROOT/etc/systemd/system/grow-persistence.service"
-
   ln -s /etc/systemd/system/grow-persistence.service "$DEBOOTSTRAP_ROOT/etc/systemd/system/multi-user.target.wants/grow-persistence.service"
+
+  # support for erofs
+  echo "erofs" >> "$DEBOOTSTRAP_ROOT/etc/initramfs-tools/modules"
+  chroot_env "$DEBOOTSTRAP_ROOT" /usr/sbin/update-initramfs -u -k all
 
   mv "$DEBOOTSTRAP_ROOT/etc/resolv.conf.backup" "$DEBOOTSTRAP_ROOT/etc/resolv.conf"
 
@@ -221,16 +224,16 @@ function build_squashfs() {
     mkdir "${CACHE_PATH}"
   fi
 
-  # suggestions: https://sigma-star.at/blog/2022/07/squashfs-erofs/
-  mksquashfs "$DEBOOTSTRAP_ROOT" "${SQUASHFS_FILE}" -comp lz4 -Xhc
-  echo "Keeping squashfs cached at ${SQUASHFS_FILE} for later use. Remove in order to clean up space."
+  # suggestions: https://sigma-star.at/blog/2022/07/erofs-erofs/
+  mkfs.erofs -zlz4hc "${EROFS_FILE}" "$DEBOOTSTRAP_ROOT"
+  echo "Keeping erofs cached at ${EROFS_FILE} for later use. Remove in order to clean up space."
 
   rm -rf "$DEBOOTSTRAP_ROOT"
 }
 
 function disk_image() {
-  SQUASHFS_SIZE="$(du -s "${SQUASHFS_FILE}" | cut -f1)"
-  PART_2_SIZE="$((1000000 + SQUASHFS_SIZE))"
+  EROFS_SIZE="$(du -s "${EROFS_FILE}" | cut -f1)"
+  PART_2_SIZE="$((1000000 + EROFS_SIZE))"
 
   IMAGE_SIZE="$((PART_2_SIZE * 1000))"
 
@@ -277,7 +280,7 @@ function disk_image() {
   echo "Creating mount points..."
 
   LIVE_MOUNT="$1"
-  SQUASHFS_TMP="$2"
+  EROFS_TMP="$2"
 
   PERSISTENCE_TMP="$(mktemp -p /var/tmp -d)"
 
@@ -294,18 +297,16 @@ function disk_image() {
   mkdir "${LIVE_MOUNT}/.live"
   chmod 700 "${LIVE_MOUNT}/.live"
 
-  cp "${SQUASHFS_FILE}" "${LIVE_MOUNT}/.live/filesystem.squashfs"
+  # live-boot enforces the file name bespite actually supporting erofs
+  cp "${EROFS_FILE}" "${LIVE_MOUNT}/.live/filesystem.squashfs"
 
   echo "Copying kernel and initramfs..."
 
-  LINUX_TMP="$(mktemp -p /var/tmp -u)"
+  mount -o ro "${EROFS_FILE}" "${EROFS_TMP}"
+  mount_chroot "$EROFS_TMP"
 
-  unsquashfs -d "${LINUX_TMP}" "${SQUASHFS_FILE}" /boot
-
-  cp "${LINUX_TMP}/boot/vmlinuz"* "${LIVE_MOUNT}/.live/vmlinuz"
-  cp "${LINUX_TMP}/boot/initrd.img"* "${LIVE_MOUNT}/.live/initrd.img"
-
-  rm -rf "${LINUX_TMP}"
+  cp "${EROFS_TMP}/vmlinuz" "${LIVE_MOUNT}/.live/vmlinuz"
+  cp "${EROFS_TMP}/initrd.img" "${LIVE_MOUNT}/.live/initrd.img"
 
   echo "Installing grub..."
 
@@ -314,27 +315,24 @@ function disk_image() {
 
   cp data/grub.cfg "${LIVE_MOUNT}/.boot/grub/grub.cfg"
 
-  CDROM_TMP="${SQUASHFS_TMP}/cdrom"
-  ESP_TMP="${SQUASHFS_TMP}/boot/efi"
+  CDROM_TMP="${EROFS_TMP}/cdrom"
+  ESP_TMP="${EROFS_TMP}/boot/efi"
 
   mkdir -p "${ESP_TMP}" || true
   mkdir -p "${CDROM_TMP}" || true
 
-  mount -o ro "${LIVE_MOUNT}/.live/filesystem.squashfs" "${SQUASHFS_TMP}"
-
-  mount_chroot "$SQUASHFS_TMP"
   mount "${DEVICE_ESP}" "${ESP_TMP}"
   mount "${DEVICE_CDROM}" "${CDROM_TMP}"
 
-  chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${DEVICE}"
-  chroot_env "${SQUASHFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
+  chroot_env "${EROFS_TMP}" /usr/sbin/grub-install --target=i386-pc --boot-directory="/cdrom/.boot" --force "${DEVICE}"
+  chroot_env "${EROFS_TMP}" /usr/sbin/grub-install --removable --target=x86_64-efi --no-nvram --uefi-secure-boot --boot-directory="/cdrom/.boot" --efi-directory="/boot/efi"
 
   umount "${ESP_TMP}"
   umount "${CDROM_TMP}"
-  umount_chroot "$SQUASHFS_TMP"
-  umount "${SQUASHFS_TMP}"
+  umount_chroot "$EROFS_TMP"
+  umount "${EROFS_TMP}"
 
-  rm -rf "${SQUASHFS_TMP}"
+  rm -rf "${EROFS_TMP}"
 
   echo "Syncing drive..."
 
@@ -405,16 +403,16 @@ case "${STAGE}" in
   "build")
     check_root
 
-    if [[ -f "${SQUASHFS_FILE}" ]]; then
-      echo "${SQUASHFS_FILE} already found. If you want to force a rebuild, manually delete this file."
+    if [[ -f "${EROFS_FILE}" ]]; then
+      echo "${EROFS_FILE} already found. If you want to force a rebuild, manually delete this file."
       exit 1
     fi
     DEBOOTSTRAP_ROOT="$(mktemp -p /var/tmp -d)"
 
-    build_squashfs "$DEBOOTSTRAP_ROOT"
+    build_erofs "$DEBOOTSTRAP_ROOT"
 
     if [ "$?" -ne 0 ]; then
-      echo -e "Error building squashfs.\n\nYou can check check $DEBOOTSTRAP_ROOT for details."
+      echo -e "Error building erofs.\n\nYou can check check $DEBOOTSTRAP_ROOT for details."
       umount_chroot "$DEBOOTSTRAP_ROOT"
       exit 1
     fi
@@ -422,19 +420,19 @@ case "${STAGE}" in
   "image")
     check_root
 
-    if [[ ! -f "${SQUASHFS_FILE}" ]]; then
-      echo "${SQUASHFS_FILE} not found. Please run first : $0 build"
+    if [[ ! -f "${EROFS_FILE}" ]]; then
+      echo "${EROFS_FILE} not found. Please run first : $0 build"
       exit 1
     fi
 
     LIVE_MOUNT="$(mktemp -p /var/tmp -d)"
-    SQUASHFS_TMP="$(mktemp -p /var/tmp -d)"
+    EROFS_TMP="$(mktemp -p /var/tmp -d)"
 
-    disk_image "$LIVE_MOUNT" "$SQUASHFS_TMP"
+    disk_image "$LIVE_MOUNT" "$EROFS_TMP"
 
     if [ "$?" -ne 0 ]; then
-      echo -e "Error creating USB image.\n\nPleas check $LIVE_MOUNT and $SQUASHFS_TMP for details."
-      umount_chroot "$SQUASHFS_TMP"
+      echo -e "Error creating USB image.\n\nPleas check $LIVE_MOUNT and $EROFS_TMP for details."
+      umount_chroot "$EROFS_TMP"
       exit 1
     fi
     ;;
