@@ -221,7 +221,8 @@ function build_squashfs() {
     mkdir "${CACHE_PATH}"
   fi
 
-  mksquashfs "$DEBOOTSTRAP_ROOT" "${SQUASHFS_FILE}"
+  # suggestions: https://sigma-star.at/blog/2022/07/squashfs-erofs/
+  mksquashfs "$DEBOOTSTRAP_ROOT" "${SQUASHFS_FILE}" -comp lz4 -Xhc
   echo "Keeping squashfs cached at ${SQUASHFS_FILE} for later use. Remove in order to clean up space."
 
   rm -rf "$DEBOOTSTRAP_ROOT"
@@ -385,7 +386,7 @@ function qemu_boot () {
       BIOS_FD_FLAGS="-drive if=pflash,format=raw,readonly=on,file=${CODE_FD} -drive if=pflash,format=raw,file=${VARS_FD}"
       ;;
     "bios")
-      BISO_FD_FLAGS=""
+      BIOS_FD_FLAGS=""
   esac
 
   qemu-system-x86_64 \
