@@ -182,7 +182,7 @@ function build_squashfs() {
     fi
   done
 
-  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak firefox fwupd apt-transport-https hunspell $TASK_STRING ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils
+  chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome flatpak gnome-software-plugin-flatpak fwupd apt-transport-https hunspell $TASK_STRING ntfs-3g initramfs-tools live-boot-initramfs-tools live-boot live-config live-task-non-free-firmware-pc live-tools linux-image-amd64 packagekit locales grub2 grub-pc grub-efi-amd64-signed shim-signed keyboard-configuration systemd-timesyncd bash-completion e2fsprogs cloud-guest-utils
 
   echo "Installing additional packages"
   chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
