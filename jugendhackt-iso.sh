@@ -89,13 +89,38 @@ function mount_chroot() {
 
   mount proc "$CHROOT/proc" -t proc -o nosuid,noexec,nodev
   mount sys "$CHROOT/sys" -t sysfs -o nosuid,noexec,nodev,ro
+  # missing CAP_SYS_ADMIN for udevfs and devtmpfs so binding
+  mount --bind /dev "$CHROOT/dev"
+  mount tmp "$CHROOT/tmp" -t tmpfs -o mode=1777,strictatime,nodev,nosuid
+}
+
+function umount_chroot() {
+  CHROOT="$1"
+
+  umount "$CHROOT/tmp"
+  umount "$CHROOT/dev"
+  umount "$CHROOT/sys"
+  umount "$CHROOT/proc"
+
+  umount "$CHROOT"
+}
+
+function mount_grub_chroot() {
+  CHROOT="$1"
+
+  # self-bind in order to fix "bwrap: Failed to make master / slave: Invalid argument"
+  # see https://github.com/flatpak/flatpak/issues/703#issuecomment-293250243
+  mount --bind "${CHROOT}" "${CHROOT}"
+
+  mount proc "$CHROOT/proc" -t proc -o nosuid,noexec,nodev
+  mount sys "$CHROOT/sys" -t sysfs -o nosuid,noexec,nodev,ro
   mount udev "$CHROOT/dev" -t devtmpfs -o mode=0755,nosuid
   mount devpts "$CHROOT/dev/pts" -t devpts -o mode=0620,gid=5,nosuid,noexec
   mount shm "$CHROOT/dev/shm" -t tmpfs -o mode=1777,nosuid,nodev
   mount tmp "$CHROOT/tmp" -t tmpfs -o mode=1777,strictatime,nodev,nosuid
 }
 
-function umount_chroot() {
+function umount_grub_chroot() {
   CHROOT="$1"
 
   umount "$CHROOT/tmp"
@@ -309,7 +334,7 @@ function disk_image() {
   echo "Copying kernel and initramfs..."
 
   mount -o ro "${EROFS_FILE}" "${EROFS_TMP}"
-  mount_chroot "$EROFS_TMP"
+  mount_grub_chroot "$EROFS_TMP"
 
   cp "${EROFS_TMP}/vmlinuz" "${LIVE_MOUNT}/.live/vmlinuz"
   cp "${EROFS_TMP}/initrd.img" "${LIVE_MOUNT}/.live/initrd.img"
@@ -335,7 +360,7 @@ function disk_image() {
 
   umount "${ESP_TMP}"
   umount "${CDROM_TMP}"
-  umount_chroot "$EROFS_TMP"
+  umount_grub_chroot "$EROFS_TMP"
   umount "${EROFS_TMP}"
 
   rm -rf "${EROFS_TMP}"
