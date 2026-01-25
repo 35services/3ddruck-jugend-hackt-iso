@@ -1,11 +1,66 @@
-build:
+stages:
+  - build-docker
+  - build-erofs
+  - build-iso
+
+build:docker:
   image: docker:latest
-  stage: build
+  stage: build-docker
+  tags:
+    - x86
   services:
     - docker:dind-rootless
   variables:
-    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
+
+"build:erofs":
+  image: docker:latest
+  stage: build-erofs
+  tags:
+    - docker-root
+  services:
+    - docker:dind
+  variables:
+    CACHE_PATH: /cache
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  script:
+    - cp ./config.sample $CI_PROJECT_DIR/config
+    - |
+      docker run --privileged --rm \
+        -v "$CI_PROJECT_DIR/cache":"/var/cache/jugendhackt-iso" \
+        -v "$CI_PROJECT_DIR/config":"/config" \
+        -v "$CI_PROJECT_DIR/data":"/data" \
+        $IMAGE_TAG \
+        /jugendhackt-iso.sh build
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/cache/*.erofs
+    expire_in: 1 hours
+
+"build:iso":
+  image: docker:latest
+  stage: build-iso
+  tags:
+    - docker-root
+  services:
+    - docker:dind
+  variables:
+    CACHE_PATH: /cache
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  script:
+    - cp ./config.sample $CI_PROJECT_DIR/config
+    - |
+      docker run --privileged --rm \
+        -v "$CI_PROJECT_DIR/cache":"/var/cache/jugendhackt-iso" \
+        -v "$CI_PROJECT_DIR/config":"/config" \
+        --mount type=bind,source=/dev,target=/dev \
+        $IMAGE_TAG \
+        /jugendhackt-iso.sh image
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/cache/*.img
+    expire_in: 30 days
