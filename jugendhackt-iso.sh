@@ -283,6 +283,8 @@ function disk_image() {
   DEVICE_CDROM="${DEVICE}p2"
   DEVICE_PERSISTENCE="${DEVICE}p3"
 
+  sleep 10 # Wait for loop device to settle
+
   echo "Partitioning disk..."
 
   # create empty partition table
@@ -297,6 +299,8 @@ function disk_image() {
   sgdisk "$DEVICE" --new 3::0 --attributes 3:set:59
 
   sync "$DEVICE"
+
+  sleep 10 # Wait for sync to complete
 
   echo "Bootstrapping filesystems..."
 
