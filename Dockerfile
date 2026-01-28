@@ -1,7 +1,7 @@
 FROM debian:sid
 
 RUN apt-get update && \
-    apt-get install -y debootstrap gdisk e2fsprogs dosfstools erofs-utils udev bubblewrap util-linux && \
+    apt-get install -y debootstrap gdisk e2fsprogs dosfstools erofs-utils udev bubblewrap util-linux parted && \
     rm -rf /var/cache/apt/*
 
 COPY data /data

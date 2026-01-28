@@ -302,6 +302,10 @@ function disk_image() {
 
   sleep 10 # Wait for sync to complete
 
+  partprobe -s "$DEVICE" # Ensure partitions are loaded
+
+  sleep 10 # Wait for partitions to load
+
   echo "Bootstrapping filesystems..."
 
   yes | mkfs.msdos -n "ESP" "${DEVICE_ESP}"
