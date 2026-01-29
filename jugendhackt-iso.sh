@@ -306,6 +306,14 @@ function disk_image() {
 
   sleep 10 # Wait for partitions to load
 
+  if [ ! -e "${DEVICE_BIOS}" ] || [ ! -e "${DEVICE_ESP}" ] || [ ! -e "${DEVICE_CDROM}" ] || [ ! -e "${DEVICE_PERSISTENCE}" ]; then
+    MAJOR=$(cat /proc/devices | grep blkext | cut -d" " -f1)
+    mknod "${DEVICE_ESP}" b "${MAJOR}" 1
+    mknod "${DEVICE_CDROM}" b "${MAJOR}" 2
+    mknod "${DEVICE_PERSISTENCE}" b "${MAJOR}" 5
+    mknod "${DEVICE_BIOS}" b "${MAJOR}" 6
+  fi
+
   echo "Bootstrapping filesystems..."
 
   yes | mkfs.msdos -n "ESP" "${DEVICE_ESP}"
