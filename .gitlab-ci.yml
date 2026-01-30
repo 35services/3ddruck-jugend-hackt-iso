@@ -63,4 +63,4 @@ build:docker:
   artifacts:
     paths:
       - $CI_PROJECT_DIR/cache/*.img
-    expire_in: 30 days
+    expire_in: 7 days
