@@ -389,7 +389,7 @@ function disk_image() {
 
   umount "$LIVE_MOUNT"
 
-  losetup -D "${DEVICE}"
+  losetup -d "${DEVICE}"
 
   rmdir "$LIVE_MOUNT"
 
