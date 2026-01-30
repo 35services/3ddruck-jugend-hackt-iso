@@ -256,7 +256,7 @@ function build_erofs() {
   fi
 
   # suggestions: https://sigma-star.at/blog/2022/07/erofs-erofs/
-  mkfs.erofs -zlz4hc "${EROFS_FILE}" "$DEBOOTSTRAP_ROOT"
+  mkfs.erofs -zlz4hc "${EROFS_FILE}" "$DEBOOTSTRAP_ROOT" > /dev/null
   echo "Keeping erofs cached at ${EROFS_FILE} for later use. Remove in order to clean up space."
 
   rm -rf "$DEBOOTSTRAP_ROOT"
