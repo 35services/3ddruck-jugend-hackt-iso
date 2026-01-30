@@ -145,6 +145,12 @@ bwrap_env () {
 
 function build_erofs() {
   DEBOOTSTRAP_ROOT="$1"
+  
+  if [[ "$(sysctl -b kernel.unprivileged_userns_clone)" -ne "1" ]]; then
+	# https://deb.li/bubblewrap
+  	echo "You must set sysctl kernel.unprivileged_userns_clone=1"
+	exit 1
+  fi
 
   echo "Bootstrapping live environment..."
 
