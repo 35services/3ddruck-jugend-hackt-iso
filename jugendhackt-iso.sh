@@ -16,6 +16,9 @@ function help () {
   echo "3. (Optional) Interactively test your built image using QEMU"
   echo "> jugendhackt-iso.sh qemu (uefi|bios) [headless]"
   echo ""
+  echo "4. (Optional) Automatically test your built image using QEMU"
+  echo "> jugendhackt-iso.sh test (uefi|bios)"
+  echo ""
   echo "Author: The one with the braid <info@braid.business>"
 }
 
@@ -25,9 +28,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 fi
 
 function check_dependencies() {
-  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)"
 
-  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate; do
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect; do
     if [[ ! -x "$(command -v $COMMAND)" ]]; then
       echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
       exit 1
@@ -448,7 +451,43 @@ function qemu_boot () {
     $BIOS_FD_FLAGS
 }
 
-check_dependencies
+function qemu_test () {
+  expect -f - <<EOF
+    set timeout 60
+    spawn ./jugendhackt-iso.sh qemu $MODE headless
+    expect {
+         "Press enter to boot the selected OS" {
+             send "\n"
+             exp_continue
+         }
+         "login: " {
+             send "alpaka\n"
+             exp_continue
+         }
+         "Passwort: " {
+             send "live\n"
+             exp_continue
+         }
+         ":~$ " {
+             send "sudo shutdown -h now\n"
+             exp_continue
+         }
+         timeout {
+             exit 1
+         }
+         eof {
+             exit
+         }
+    }
+EOF
+  if [ "$?" -ne 0 ]; then
+      echo -e "Test test failed"
+      exit 1
+  fi
+  echo -e "Test passed"
+}
+
+#check_dependencies
 load_config
 
 case "${STAGE}" in
@@ -511,6 +550,18 @@ case "${STAGE}" in
 
     qemu_boot
     ;;
+  "test")
+    check_non_root
+
+    MODE="$2"
+
+    if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
+      help
+      exit 1
+    fi
+
+    qemu_test
+  ;;
   *)
     help
     exit 1
