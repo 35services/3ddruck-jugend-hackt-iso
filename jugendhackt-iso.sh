@@ -412,6 +412,7 @@ function qemu_boot () {
 
   DISPLAY="-nographic"
   if [[ "$HEADLESS" != "headless" ]]; then
+    check_non_root
     DISPLAY="-serial stdio -display gtk -device VGA,vgamem_mb=128"
   fi
 
@@ -528,8 +529,6 @@ case "${STAGE}" in
     fi
     ;;
   "qemu")
-    check_non_root
-
     if [[ ! -f "${IMAGE_FILE}" ]]; then
       echo "${IMAGE_FILE} not found. Please run first : $0 image"
       exit 1
@@ -551,8 +550,6 @@ case "${STAGE}" in
     qemu_boot
     ;;
   "test")
-    check_non_root
-
     MODE="$2"
 
     if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
