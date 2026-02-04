@@ -405,7 +405,7 @@ function qemu_boot () {
     exit 1
   fi
 
-  if ! id -nG "$USER" | grep -qw kvm; then
+  if ! id -nG "$(whoami)" | grep -qw kvm; then
     echo -e "You need to be part of the kvm group in order to boot the disk image using QEMU.\nPlease first run:\nsudo usermod -aG kvm \$USER\nnewgrp kvm"
     exit 1
   fi
