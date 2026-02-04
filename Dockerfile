@@ -1,10 +1,10 @@
 FROM debian:sid
 
 RUN apt-get update && \
-    apt-get install -y debootstrap gdisk e2fsprogs dosfstools erofs-utils udev bubblewrap util-linux parted expect qemu-system-x86 && \
+    apt-get install -y debootstrap gdisk e2fsprogs dosfstools erofs-utils udev bubblewrap util-linux parted expect qemu-system-x86 ovmf && \
     rm -rf /var/cache/apt/*
 
-RUN usermod -aG kvm $USER
+RUN usermod -aG kvm root
 
 COPY data /data
 COPY jugendhackt-iso.sh /jugendhackt-iso.sh
