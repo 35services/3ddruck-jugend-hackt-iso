@@ -13,8 +13,8 @@ function help () {
   echo "2. Create a disk image to flash on a USB drive"
   echo "> jugendhackt-iso.sh image"
   echo ""
-  echo "3. (Optional) Test your built image using QEMU"
-  echo "> jugendhackt-iso.sh qemu (uefi|bios)"
+  echo "3. (Optional) Interactively test your built image using QEMU"
+  echo "> jugendhackt-iso.sh qemu (uefi|bios) [headless]"
   echo ""
   echo "Author: The one with the braid <info@braid.business>"
 }
@@ -407,6 +407,11 @@ function qemu_boot () {
     exit 1
   fi
 
+  DISPLAY="-nographic"
+  if [[ "$HEADLESS" != "headless" ]]; then
+    DISPLAY="-serial stdio -display gtk -device VGA,vgamem_mb=128"
+  fi
+
   case "$MODE" in
     "uefi")
       CODE_PREDICTS="/usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/x64/OVMF_CODE.4m.fd /usr/share/OVMF/OVMF_CODE_4M.secboot.fd /usr/share/OVMF/x64/OVMF_CODE.secboot.4m.fd"
@@ -437,7 +442,7 @@ function qemu_boot () {
   qemu-system-x86_64 \
     -machine type=q35,accel=kvm \
     -m 8G -cpu host -smp $(nproc) \
-    -display gtk -device VGA,vgamem_mb=128 \
+    $DISPLAY \
     -device virtio-net,netdev=vmnic -netdev user,id=vmnic \
     -snapshot -drive file="$IMAGE_FILE" \
     $BIOS_FD_FLAGS
@@ -492,8 +497,14 @@ case "${STAGE}" in
     fi
 
     MODE="$2"
+    HEADLESS="$3"
 
     if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
+      help
+      exit 1
+    fi
+
+    if [[ "$HEADLESS" != "" && "$HEADLESS" != "headless" ]]; then
       help
       exit 1
     fi
