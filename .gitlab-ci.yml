@@ -2,6 +2,7 @@ stages:
   - build-docker
   - build-erofs
   - build-iso
+  - test-iso
 
 build:docker:
   image: docker:latest
@@ -64,3 +65,32 @@ build:docker:
     paths:
       - $CI_PROJECT_DIR/cache/*.img
     expire_in: 7 days
+
+"test:iso":
+  image: docker:latest
+  stage: test-iso
+  tags:
+    - docker-root
+  services:
+    - docker:dind
+  dependencies:
+    - "build:iso"
+  variables:
+    CACHE_PATH: /cache
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  script:
+    - cp ./config.sample $CI_PROJECT_DIR/config
+    - |
+      docker run --privileged --rm \
+        --device=/dev/kvm \
+        -v "$CI_PROJECT_DIR/cache":"/var/cache/jugendhackt-iso" \
+        -v "$CI_PROJECT_DIR/config":"/config" \
+        $IMAGE_TAG \
+        /jugendhackt-iso.sh test bios ci
+    - |
+      docker run --privileged --rm \
+        --device=/dev/kvm \
+        -v "$CI_PROJECT_DIR/cache":"/var/cache/jugendhackt-iso" \
+        -v "$CI_PROJECT_DIR/config":"/config" \
+        $IMAGE_TAG \
+        /jugendhackt-iso.sh test uefi ci

@@ -14,10 +14,10 @@ function help () {
   echo "> jugendhackt-iso.sh image"
   echo ""
   echo "3. (Optional) Interactively test your built image using QEMU"
-  echo "> jugendhackt-iso.sh qemu (uefi|bios) [headless]"
+  echo "> jugendhackt-iso.sh qemu (uefi|bios) [headless] [ci]"
   echo ""
   echo "4. (Optional) Automatically test your built image using QEMU"
-  echo "> jugendhackt-iso.sh test (uefi|bios)"
+  echo "> jugendhackt-iso.sh test (uefi|bios) [ci]"
   echo ""
   echo "Author: The one with the braid <info@braid.business>"
 }
@@ -416,6 +416,17 @@ function qemu_boot () {
     DISPLAY="-serial stdio -display gtk -device VGA,vgamem_mb=128"
   fi
 
+  QEMU_MACHINE="-machine type=q35"
+  QEMU_MEMORY="-m 4G"
+  QEMU_NETWORK=""
+  QEMU_CPU=""
+  if [[ "$GITLAB_CI" != "ci" ]]; then
+    QEMU_MACHINE="-machine type=q35,accel=kvm"
+    QEMU_MEMORY="-m 8G"
+    QEMU_NETWORK="-device virtio-net,netdev=vmnic -netdev user,id=vmnic"
+    QEMU_CPU="-cpu host"
+  fi
+
   case "$MODE" in
     "uefi")
       CODE_PREDICTS="/usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/x64/OVMF_CODE.4m.fd /usr/share/OVMF/OVMF_CODE_4M.secboot.fd /usr/share/OVMF/x64/OVMF_CODE.secboot.4m.fd"
@@ -444,18 +455,20 @@ function qemu_boot () {
   esac
 
   qemu-system-x86_64 \
-    -machine type=q35,accel=kvm \
-    -m 8G -cpu host -smp $(nproc) \
+    $QEMU_MACHINE \
+    $QEMU_MEMORY \
+    $QEMU_CPU \
+    -smp $(nproc) \
     $DISPLAY \
-    -device virtio-net,netdev=vmnic -netdev user,id=vmnic \
+    $QEMU_NETWORK \
     -snapshot -drive file="$IMAGE_FILE" \
     $BIOS_FD_FLAGS
 }
 
 function qemu_test () {
   expect -f - <<EOF
-    set timeout 60
-    spawn ./jugendhackt-iso.sh qemu $MODE headless
+    set timeout 600
+    spawn ./jugendhackt-iso.sh qemu $MODE headless $GITLAB_CI
     expect {
          "Press enter to boot the selected OS" {
              send "\n"
@@ -472,6 +485,9 @@ function qemu_test () {
          ":~$ " {
              send "sudo shutdown -h now\n"
              exp_continue
+         }
+         "qemu-system-x86_64: " {
+            exit 2
          }
          timeout {
              exit 1
@@ -536,6 +552,7 @@ case "${STAGE}" in
 
     MODE="$2"
     HEADLESS="$3"
+    GITLAB_CI="$4"
 
     if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
       help
@@ -547,12 +564,23 @@ case "${STAGE}" in
       exit 1
     fi
 
+    if [[ "$GITLAB_CI" != "" && "$GITLAB_CI" != "ci" ]]; then
+      help
+      exit 1
+    fi
+
     qemu_boot
     ;;
   "test")
     MODE="$2"
+    GITLAB_CI="$3"
 
     if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
+      help
+      exit 1
+    fi
+
+    if [[ "$GITLAB_CI" != "" && "$GITLAB_CI" != "ci" ]]; then
       help
       exit 1
     fi
