@@ -3,6 +3,7 @@ stages:
   - build-erofs
   - build-iso
   - test-iso
+  - publish
 
 build:docker:
   image: docker:latest
@@ -95,3 +96,21 @@ build:docker:
         -v "$CI_PROJECT_DIR/config":"/config" \
         $IMAGE_TAG \
         /jugendhackt-iso.sh test uefi ci
+
+"publish:pages":
+  stage: publish
+  dependencies: []
+  image: debian:latest
+  script:
+    - |
+      apt-get update && \
+      apt-get install -y curl jq  && \
+      rm -rf /var/cache/apt/*
+    - cp ./config.sample $CI_PROJECT_DIR/config
+    - |
+      export BUILD_JOB_ID="$(curl --header "JOB-TOKEN: $CI_JOB_TOKEN" $CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs | jq '.[] | select(.name | contains("build:iso")) | .id')"
+    - export CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
+    - eval "echo \"$(cat pages/index.html)\"" > pages/index.html
+    - eval "echo \"$(cat pages/_redirects)\"" > pages/_redirects
+  pages:
+    publish: pages
