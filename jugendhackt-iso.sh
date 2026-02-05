@@ -395,6 +395,10 @@ function disk_image() {
   losetup -d "${DEVICE}"
 
   rmdir "$LIVE_MOUNT"
+  sha256sum "$IMAGE_FILE" > "${CACHE_PATH}/${IDENTIFIER}.sum"
+  echo "SHA256 Sum:"
+  cat "${CACHE_PATH}/${IDENTIFIER}.sum"
+  echo ""
 
   echo -e "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
 }

@@ -64,6 +64,7 @@ build:docker:
   artifacts:
     paths:
       - $CI_PROJECT_DIR/cache/*.img
+      - $CI_PROJECT_DIR/cache/*.sum
     expire_in: 7 days
 
 "test:iso":
