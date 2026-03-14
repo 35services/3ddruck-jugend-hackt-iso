@@ -115,5 +115,7 @@ build:docker:
     - export CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
     - eval "echo \"$(cat pages/index.html)\"" > pages/index.html
     - eval "echo \"$(cat pages/_redirects)\"" > pages/_redirects
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   pages:
     publish: pages
