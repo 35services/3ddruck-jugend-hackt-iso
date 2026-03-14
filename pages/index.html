@@ -1,0 +1,24 @@
+<html>
+<head>
+
+</head>
+<body>
+<h1>Jugend hackt ISO</h1>
+<h2>Aktueller Build:</h2>
+<p>Gebaut am $CI_PIPELINE_CREATED_AT</p>
+<p>Commit: <a href="$CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA"><code>$CI_COMMIT_BRANCH/$CI_COMMIT_SHORT_SHA</code></a></p>
+<p>Config: <code>$CONFIG_CHECKSUM</code></p>
+<p>
+    <a href="$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$CONFIG_CHECKSUM.img?inline=false">Download Image</a>
+    <a href="$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$CONFIG_CHECKSUM.sum?inline=false">Download SHA256 Summe</a>
+</p>
+<p>
+    <a href="$CI_PIPELINE_URL">Build log</a>
+</p>
+<p>
+    <span>Du kannst diese Links nutzen um immer die aktuelle Version (z.B. in einem Script) herunterzuladen:<br></span>
+    <a href="https://jh-iso.alpaka.space/latest.img">$CI_PAGES_URL/latest.img</a>
+    <a href="https://jh-iso.alpaka.space/latest.sum">$CI_PAGES_URL/latest.sum</a>
+</p>
+</body>
+</html>

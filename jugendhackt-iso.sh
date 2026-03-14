@@ -13,8 +13,11 @@ function help () {
   echo "2. Create a disk image to flash on a USB drive"
   echo "> jugendhackt-iso.sh image"
   echo ""
-  echo "3. (Optional) Test your built image using QEMU"
-  echo "> jugendhackt-iso.sh qemu (uefi|bios)"
+  echo "3. (Optional) Interactively test your built image using QEMU"
+  echo "> jugendhackt-iso.sh qemu (uefi|bios) [headless] [ci]"
+  echo ""
+  echo "4. (Optional) Automatically test your built image using QEMU"
+  echo "> jugendhackt-iso.sh test (uefi|bios) [ci]"
   echo ""
   echo "Author: The one with the braid <info@braid.business>"
 }
@@ -25,9 +28,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 fi
 
 function check_dependencies() {
-  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)"
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)"
 
-  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate; do
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect; do
     if [[ ! -x "$(command -v $COMMAND)" ]]; then
       echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
       exit 1
@@ -89,13 +92,38 @@ function mount_chroot() {
 
   mount proc "$CHROOT/proc" -t proc -o nosuid,noexec,nodev
   mount sys "$CHROOT/sys" -t sysfs -o nosuid,noexec,nodev,ro
+  # missing CAP_SYS_ADMIN for udevfs and devtmpfs so binding
+  mount --bind /dev "$CHROOT/dev"
+  mount tmp "$CHROOT/tmp" -t tmpfs -o mode=1777,strictatime,nodev,nosuid
+}
+
+function umount_chroot() {
+  CHROOT="$1"
+
+  umount "$CHROOT/tmp"
+  umount "$CHROOT/dev"
+  umount "$CHROOT/sys"
+  umount "$CHROOT/proc"
+
+  umount "$CHROOT"
+}
+
+function mount_grub_chroot() {
+  CHROOT="$1"
+
+  # self-bind in order to fix "bwrap: Failed to make master / slave: Invalid argument"
+  # see https://github.com/flatpak/flatpak/issues/703#issuecomment-293250243
+  mount --bind "${CHROOT}" "${CHROOT}"
+
+  mount proc "$CHROOT/proc" -t proc -o nosuid,noexec,nodev
+  mount sys "$CHROOT/sys" -t sysfs -o nosuid,noexec,nodev,ro
   mount udev "$CHROOT/dev" -t devtmpfs -o mode=0755,nosuid
   mount devpts "$CHROOT/dev/pts" -t devpts -o mode=0620,gid=5,nosuid,noexec
   mount shm "$CHROOT/dev/shm" -t tmpfs -o mode=1777,nosuid,nodev
   mount tmp "$CHROOT/tmp" -t tmpfs -o mode=1777,strictatime,nodev,nosuid
 }
 
-function umount_chroot() {
+function umount_grub_chroot() {
   CHROOT="$1"
 
   umount "$CHROOT/tmp"
@@ -145,6 +173,12 @@ bwrap_env () {
 
 function build_erofs() {
   DEBOOTSTRAP_ROOT="$1"
+  
+  if [[ "$(sysctl -b kernel.unprivileged_userns_clone)" -ne "1" ]]; then
+	# https://deb.li/bubblewrap
+  	echo "You must set sysctl kernel.unprivileged_userns_clone=1"
+	exit 1
+  fi
 
   echo "Bootstrapping live environment..."
 
@@ -225,7 +259,7 @@ function build_erofs() {
   fi
 
   # suggestions: https://sigma-star.at/blog/2022/07/erofs-erofs/
-  mkfs.erofs -zlz4hc "${EROFS_FILE}" "$DEBOOTSTRAP_ROOT"
+  mkfs.erofs -zlz4hc "${EROFS_FILE}" "$DEBOOTSTRAP_ROOT" > /dev/null
   echo "Keeping erofs cached at ${EROFS_FILE} for later use. Remove in order to clean up space."
 
   rm -rf "$DEBOOTSTRAP_ROOT"
@@ -252,6 +286,8 @@ function disk_image() {
   DEVICE_CDROM="${DEVICE}p2"
   DEVICE_PERSISTENCE="${DEVICE}p3"
 
+  sleep 10 # Wait for loop device to settle
+
   echo "Partitioning disk..."
 
   # create empty partition table
@@ -266,6 +302,20 @@ function disk_image() {
   sgdisk "$DEVICE" --new 3::0 --attributes 3:set:59
 
   sync "$DEVICE"
+
+  sleep 10 # Wait for sync to complete
+
+  partprobe -s "$DEVICE" # Ensure partitions are loaded
+
+  sleep 10 # Wait for partitions to load
+
+  if [ ! -e "${DEVICE_BIOS}" ] || [ ! -e "${DEVICE_ESP}" ] || [ ! -e "${DEVICE_CDROM}" ] || [ ! -e "${DEVICE_PERSISTENCE}" ]; then
+    MAJOR=$(cat /proc/devices | grep blkext | cut -d" " -f1)
+    mknod "${DEVICE_ESP}" b "${MAJOR}" 1
+    mknod "${DEVICE_CDROM}" b "${MAJOR}" 2
+    mknod "${DEVICE_PERSISTENCE}" b "${MAJOR}" 5
+    mknod "${DEVICE_BIOS}" b "${MAJOR}" 6
+  fi
 
   echo "Bootstrapping filesystems..."
 
@@ -303,7 +353,7 @@ function disk_image() {
   echo "Copying kernel and initramfs..."
 
   mount -o ro "${EROFS_FILE}" "${EROFS_TMP}"
-  mount_chroot "$EROFS_TMP"
+  mount_grub_chroot "$EROFS_TMP"
 
   cp "${EROFS_TMP}/vmlinuz" "${LIVE_MOUNT}/.live/vmlinuz"
   cp "${EROFS_TMP}/initrd.img" "${LIVE_MOUNT}/.live/initrd.img"
@@ -329,7 +379,7 @@ function disk_image() {
 
   umount "${ESP_TMP}"
   umount "${CDROM_TMP}"
-  umount_chroot "$EROFS_TMP"
+  umount_grub_chroot "$EROFS_TMP"
   umount "${EROFS_TMP}"
 
   rm -rf "${EROFS_TMP}"
@@ -342,9 +392,13 @@ function disk_image() {
 
   umount "$LIVE_MOUNT"
 
-  losetup -D "${DEVICE}"
+  losetup -d "${DEVICE}"
 
   rmdir "$LIVE_MOUNT"
+  sha256sum "$IMAGE_FILE" > "${CACHE_PATH}/${IDENTIFIER}.sum"
+  echo "SHA256 Sum:"
+  cat "${CACHE_PATH}/${IDENTIFIER}.sum"
+  echo ""
 
   echo -e "You can find the disk image at: ${IMAGE_FILE}\n\nPlease use a tool link Etcher or the dd command to flash it to your USB drive."
 }
@@ -355,9 +409,26 @@ function qemu_boot () {
     exit 1
   fi
 
-  if ! id -nG "$USER" | grep -qw kvm; then
+  if ! id -nG "$(whoami)" | grep -qw kvm; then
     echo -e "You need to be part of the kvm group in order to boot the disk image using QEMU.\nPlease first run:\nsudo usermod -aG kvm \$USER\nnewgrp kvm"
     exit 1
+  fi
+
+  DISPLAY="-nographic"
+  if [[ "$HEADLESS" != "headless" ]]; then
+    check_non_root
+    DISPLAY="-serial stdio -display gtk -device VGA,vgamem_mb=128"
+  fi
+
+  QEMU_MACHINE="-machine type=q35"
+  QEMU_MEMORY="-m 4G"
+  QEMU_NETWORK=""
+  QEMU_CPU=""
+  if [[ "$GITLAB_CI" != "ci" ]]; then
+    QEMU_MACHINE="-machine type=q35,accel=kvm"
+    QEMU_MEMORY="-m 8G"
+    QEMU_NETWORK="-device virtio-net,netdev=vmnic -netdev user,id=vmnic"
+    QEMU_CPU="-cpu host"
   fi
 
   case "$MODE" in
@@ -388,15 +459,56 @@ function qemu_boot () {
   esac
 
   qemu-system-x86_64 \
-    -machine type=q35,accel=kvm \
-    -m 8G -cpu host -smp $(nproc) \
-    -display gtk -device VGA,vgamem_mb=128 \
-    -device virtio-net,netdev=vmnic -netdev user,id=vmnic \
+    $QEMU_MACHINE \
+    $QEMU_MEMORY \
+    $QEMU_CPU \
+    -smp $(nproc) \
+    $DISPLAY \
+    $QEMU_NETWORK \
     -snapshot -drive file="$IMAGE_FILE" \
     $BIOS_FD_FLAGS
 }
 
-check_dependencies
+function qemu_test () {
+  expect -f - <<EOF
+    set timeout 600
+    spawn ./jugendhackt-iso.sh qemu $MODE headless $GITLAB_CI
+    expect {
+         "Press enter to boot the selected OS" {
+             send "\n"
+             exp_continue
+         }
+         "login: " {
+             send "alpaka\n"
+             exp_continue
+         }
+         "Passwort: " {
+             send "live\n"
+             exp_continue
+         }
+         ":~$ " {
+             send "sudo shutdown -h now\n"
+             exp_continue
+         }
+         "qemu-system-x86_64: " {
+            exit 2
+         }
+         timeout {
+             exit 1
+         }
+         eof {
+             exit
+         }
+    }
+EOF
+  if [ "$?" -ne 0 ]; then
+      echo -e "Test test failed"
+      exit 1
+  fi
+  echo -e "Test passed"
+}
+
+#check_dependencies
 load_config
 
 case "${STAGE}" in
@@ -437,22 +549,48 @@ case "${STAGE}" in
     fi
     ;;
   "qemu")
-    check_non_root
-
     if [[ ! -f "${IMAGE_FILE}" ]]; then
       echo "${IMAGE_FILE} not found. Please run first : $0 image"
       exit 1
     fi
 
     MODE="$2"
+    HEADLESS="$3"
+    GITLAB_CI="$4"
 
     if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
       help
       exit 1
     fi
 
+    if [[ "$HEADLESS" != "" && "$HEADLESS" != "headless" ]]; then
+      help
+      exit 1
+    fi
+
+    if [[ "$GITLAB_CI" != "" && "$GITLAB_CI" != "ci" ]]; then
+      help
+      exit 1
+    fi
+
     qemu_boot
     ;;
+  "test")
+    MODE="$2"
+    GITLAB_CI="$3"
+
+    if [[ "$MODE" != "uefi" && "$MODE" != "bios" ]]; then
+      help
+      exit 1
+    fi
+
+    if [[ "$GITLAB_CI" != "" && "$GITLAB_CI" != "ci" ]]; then
+      help
+      exit 1
+    fi
+
+    qemu_test
+  ;;
   *)
     help
     exit 1
