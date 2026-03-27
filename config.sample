@@ -12,7 +12,7 @@ RELEASE_MIRROR="https://deb.debian.org/debian"
 TASK_LANGUAGES="arabic czech croatian english french german hungarian italian polish russian serbian turkish ukrainian"
 
 # additional APT packages to install
-ADDITIONAL_PACKAGES="git vim nano webext-ublock-origin-firefox libreoffice godot3 blender gimp inkscape krita fritzing android-sdk nodejs npm vlc docker.io docker-compose docker-buildx"
+ADDITIONAL_PACKAGES="git vim nano webext-ublock-origin-firefox libreoffice godot3 gimp inkscape krita fritzing android-sdk nodejs npm vlc docker.io docker-compose docker-buildx"
 
 # additional Flatpak packages to include. Must be available on Flathub as of now
 ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.google.AndroidStudio com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 com.github.libresprite.LibreSprite org.processing.processingide org.zulip.Zulip io.github.ungoogled_software.ungoogled_chromium com.collaboraoffice.Office"
