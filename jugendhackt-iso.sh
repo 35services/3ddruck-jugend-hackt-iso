@@ -475,18 +475,22 @@ function qemu_test () {
     spawn ./jugendhackt-iso.sh qemu $MODE headless $GITLAB_CI
     expect {
          "Press enter to boot the selected OS" {
+             sleep 5
              send "\n"
              exp_continue
          }
          "login: " {
+             sleep 1
              send "alpaka\n"
              exp_continue
          }
          "Passwort: " {
+             sleep 1
              send "live\n"
              exp_continue
          }
          ":~$ " {
+             sleep 1
              send "sudo shutdown -h now\n"
              exp_continue
          }
