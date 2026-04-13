@@ -274,7 +274,7 @@ function disk_image() {
   echo "Creating loop device..."
 
   fallocate -l "$((IMAGE_SIZE + 1000000000))" "${IMAGE_FILE}"
-  losetup -vfP "${IMAGE_FILE}"
+  losetup -fP "${IMAGE_FILE}"
 
   OUTPUT="$(losetup -a | grep "${IMAGE_FILE}")"
   SPLIT=(${OUTPUT//:/ })
