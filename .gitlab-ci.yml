@@ -2,25 +2,25 @@ default:
   retry: 2
 
 stages:
-  - build-docker
+#  - build-docker
   - build-erofs
   - build-iso
   - test-iso
   - publish
 
-build:docker:
-  image: docker:latest
-  stage: build-docker
-  tags:
-    - x86
-  services:
-    - docker:dind-rootless
-  variables:
-    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-  script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build -t $IMAGE_TAG .
-    - docker push $IMAGE_TAG
+#build:docker:
+#  image: docker:latest
+#  stage: build-docker
+#  tags:
+#    - x86
+#  services:
+#    - docker:dind-rootless
+#  variables:
+#    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+#  script:
+#    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+#    - docker build -t $IMAGE_TAG .
+#    - docker push $IMAGE_TAG
 
 "build:erofs":
   image: docker:latest
