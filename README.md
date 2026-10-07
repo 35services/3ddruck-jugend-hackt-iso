@@ -14,6 +14,7 @@ Bootstraps a persistent Debian-based live system on a USB stick.
 - supports Austrian German *<3 Jh Linz, love you*
 - supports Swiss keyboard layout *<3 Jh Zurich, love you*
 - install Flatpak bundles (`.flatpak` files) for apps not available on Flathub
+- put files such as a welcome text on the desktop
 - optional SSH access with public keys only
 - install Inkscape extensions from `.zip` archives, e.g. for the AxiDraw pen plotter
 
@@ -29,6 +30,8 @@ cp config.sample config
 # check, edit and adjust the config file to your needs (open it in an editor like nano)
  
 nano config
+
+# required for the 3D-Druck-AG configuration: set SNAPMAKER_PASSWORD in config
 
 ```
 
@@ -58,6 +61,12 @@ Apps that are not on Flathub can be installed from `.flatpak` bundle files by li
 Since the files are copied from `/etc/skel`, they only reach users created from the image. A stick whose persistence partition already contains the user won't receive them.
 
 To connect to an AxiDraw over USB, the user needs to be in the `dialout` group, which `data/live.conf` already sets.
+
+### Desktop files
+
+All files in `data/desktop` are copied to the live user's desktop on the first login, by `data/copy-desktop-files.sh` via an autostart entry. It uses the language-specific desktop folder (e.g. `Desktop` or `Schreibtisch`), runs once per user so deleted files are not restored, and also works for users that already exist on a stick. To show the files on the GNOME desktop, the build installs and enables the Desktop Icons NG extension. The 3D-Druck-AG configuration ships a German welcome text, `LIESMICH.txt`, and `axidraw.txt` with links to the AxiDraw documentation, third-party software and the AG's projects.
+
+The welcome text refers to `snapmaker-konto.txt`, which the build writes to the desktop with the login for the AG's Snapmaker account. Set `SNAPMAKER_PASSWORD` in your local `config` during setup: the build refuses to start without it. Since `config` is ignored by git, the password never ends up in the repository. It is stored in plain text on every stick, though.
 
 ### SSH access
 

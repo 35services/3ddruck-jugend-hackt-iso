@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Copy desktop files
+Exec=/usr/local/bin/copy-desktop-files.sh
+NoDisplay=true

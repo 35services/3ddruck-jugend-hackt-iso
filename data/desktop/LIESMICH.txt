@@ -1,0 +1,39 @@
+Willkommen in der 3D-Druck-AG!
+==============================
+
+Dieser Computer startet von einem USB-Stick. Alles, was du hier
+speicherst, bleibt auf dem Stick erhalten, auch nach einem Neustart.
+
+Anmeldung
+---------
+Benutzer: druck
+Passwort: live
+
+Snapmaker-Konto
+---------------
+Die Zugangsdaten stehen in snapmaker-konto.txt.
+
+3D-Druck
+--------
+- PrusaSlicer, Snapmaker Orca und UltiMaker Cura: 3D-Modelle (STL, 3MF)
+  für den Drucker vorbereiten ("slicen")
+- OpenSCAD: 3D-Modelle programmieren
+- FreeCAD: 3D-Modelle konstruieren
+
+Plotten mit dem AxiDraw
+-----------------------
+- Inkscape öffnen, Zeichnung erstellen
+- Menü Erweiterungen > AxiDraw Control
+- Den AxiDraw per USB anschließen
+- Links zur Dokumentation und zu unseren Projekten: axidraw.txt
+
+Weitere Programme
+-----------------
+- Grafik: GIMP, Inkscape, Krita, LibreSprite
+- Programmieren: VSCodium, IntelliJ IDEA, Arduino IDE, Processing, Scratch
+- Büro: Collabora Office
+
+Gut zu wissen
+-------------
+- Dateien speicherst du am besten in deinem persönlichen Ordner.
+- Die AG-Leitung kann sich zur Wartung per SSH mit diesem Computer verbinden.

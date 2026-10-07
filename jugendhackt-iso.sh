@@ -233,6 +233,19 @@ function build_erofs() {
     chmod 644 "$DEBOOTSTRAP_ROOT/etc/ssh/sshd_config.d/50-jugendhackt-iso.conf"
   fi
 
+  if compgen -G "data/desktop/*" > /dev/null; then
+    echo "Adding files to the desktop..."
+    chroot_env "$DEBOOTSTRAP_ROOT" apt install -y gnome-shell-extension-desktop-icons-ng xdg-user-dirs
+    mkdir -p "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop"
+    cp -r data/desktop/. "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/"
+    printf 'Snapmaker-Konto der 3D-Druck-AG\n===============================\n\nBenutzer: %s\nPasswort: %s\n' \
+      "$SNAPMAKER_USERNAME" "$SNAPMAKER_PASSWORD" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/snapmaker-konto.txt"
+    cp data/copy-desktop-files.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
+    chmod 755 "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
+    cp data/copy-desktop-files.desktop "$DEBOOTSTRAP_ROOT/etc/xdg/autostart/copy-desktop-files.desktop"
+    cp data/90-jugendhackt-iso.gschema.override "$DEBOOTSTRAP_ROOT/usr/share/glib-2.0/schemas/90-jugendhackt-iso.gschema.override"
+    chroot_env "$DEBOOTSTRAP_ROOT" glib-compile-schemas /usr/share/glib-2.0/schemas
+  fi
   chroot_env "$DEBOOTSTRAP_ROOT" apt autoremove -y
   chroot_env "$DEBOOTSTRAP_ROOT" apt clean
   chroot_env "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
@@ -553,6 +566,11 @@ load_config
 case "${STAGE}" in
   "build")
     check_root
+
+    if [[ -z "$SNAPMAKER_PASSWORD" ]]; then
+      echo "Please set SNAPMAKER_PASSWORD in ./config to the password of the AG's Snapmaker account"
+      exit 1
+    fi
 
     if [[ -f "${EROFS_FILE}" ]]; then
       echo "${EROFS_FILE} already found. If you want to force a rebuild, manually delete this file."

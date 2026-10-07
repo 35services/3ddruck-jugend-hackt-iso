@@ -1,0 +1,29 @@
+AxiDraw: Links und Dokumentation
+================================
+
+Unsere Projekte
+---------------
+- Projekte für unseren AxiDraw V3:
+  https://github.com/35services/2d
+
+Offizielle Dokumentation
+------------------------
+- Übersicht im Wiki:
+  https://wiki.evilmadscientist.com/AxiDraw
+- Bedienungsanleitung (User Guide):
+  https://wiki.evilmadscientist.com/AxiDraw_User_Guide
+- Software-Installation:
+  https://wiki.evilmadscientist.com/Axidraw_Software_Installation
+- Offizielle Website:
+  https://axidraw.com
+- Steuerung per Kommandozeile und Python:
+  https://axidraw.com/doc/cli_api/
+  https://axidraw.com/doc/py_api/
+
+Andere Software für den AxiDraw
+-------------------------------
+- saxi: Weboberfläche zum Plotten, ohne Inkscape:
+  https://github.com/nornagon/saxi
+- Liste weiterer Programme und Bibliotheken (z. B. für Processing,
+  p5.js und Python):
+  https://wiki.evilmadscientist.com/AxiDraw#Third-party_software_to_drive_AxiDraw:

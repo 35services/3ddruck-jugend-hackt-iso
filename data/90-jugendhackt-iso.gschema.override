@@ -1,0 +1,3 @@
+# show files on the desktop using the Desktop Icons NG extension
+[org.gnome.shell]
+enabled-extensions=['ding@rastersoft.com']
