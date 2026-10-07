@@ -28,9 +28,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 fi
 
 function check_dependencies() {
-  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)\n - curl (curl)"
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)\n - curl (curl)\n - unzip (unzip)"
 
-  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect curl; do
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect curl unzip; do
     if [[ ! -x "$(command -v $COMMAND)" ]]; then
       echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
       exit 1
@@ -244,6 +244,24 @@ function build_erofs() {
     rm "$DEBOOTSTRAP_ROOT/tmp/bundle.flatpak"
   done
   bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
+
+  echo "Installing additional Inkscape extensions..."
+
+  INKSCAPE_EXTENSIONS_DIR="$DEBOOTSTRAP_ROOT/etc/skel/.config/inkscape/extensions"
+  for EXTENSION_URL in $INKSCAPE_EXTENSION_ZIPS; do
+    EXTENSION_TMP="$(mktemp -d)"
+    curl -fL -o "$EXTENSION_TMP/extension.zip" "$EXTENSION_URL"
+    unzip -q "$EXTENSION_TMP/extension.zip" -d "$EXTENSION_TMP/extracted"
+    # copy the contents of a single top-level folder, not the folder itself
+    EXTENSION_SOURCE="$EXTENSION_TMP/extracted"
+    EXTENSION_ENTRIES=("$EXTENSION_SOURCE"/*)
+    if [[ ${#EXTENSION_ENTRIES[@]} -eq 1 && -d "${EXTENSION_ENTRIES[0]}" ]]; then
+      EXTENSION_SOURCE="${EXTENSION_ENTRIES[0]}"
+    fi
+    mkdir -p "$INKSCAPE_EXTENSIONS_DIR"
+    cp -r "$EXTENSION_SOURCE"/. "$INKSCAPE_EXTENSIONS_DIR/"
+    rm -rf "$EXTENSION_TMP"
+  done
 
   cp data/live.conf "$DEBOOTSTRAP_ROOT/etc/live/config.conf"
   cp data/grow-persistence.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/grow-persistence.sh"

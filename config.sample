@@ -21,6 +21,10 @@ ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.v
 # Must be built for x86_64. Bundles do not auto-update, bump the URLs to update
 ADDITIONAL_FLATPAK_BUNDLES="https://github.com/Snapmaker/OrcaSlicer/releases/download/v2.4.0/Snapmaker_Orca-Linux-flatpak_V2.4.0_x86_64.flatpak"
 
+# Inkscape extensions (.zip archives) to install into the live user's Inkscape extensions directory
+# requires inkscape in ADDITIONAL_PACKAGES. Default: AxiDraw plotter extension, https://wiki.evilmadscientist.com/Axidraw_Software_Installation
+INKSCAPE_EXTENSION_ZIPS="https://cdn.evilmadscientist.com/dl/ad/public/395/AxiDraw_395_LinX86.zip"
+
 DEBCONF_SELECTIONS=(
     "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true"
     # https://bugs-devel.debian.org/cgi-bin/bugreport.cgi?bug=856594

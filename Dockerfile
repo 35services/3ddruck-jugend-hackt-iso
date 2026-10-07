@@ -1,7 +1,7 @@
 FROM debian:sid
 
 RUN apt-get update && \
-    apt-get install -y debootstrap gdisk e2fsprogs dosfstools erofs-utils udev bubblewrap util-linux parted expect qemu-system-x86 ovmf curl && \
+    apt-get install -y debootstrap gdisk e2fsprogs dosfstools erofs-utils udev bubblewrap util-linux parted expect qemu-system-x86 ovmf curl unzip && \
     rm -rf /var/cache/apt/*
 
 RUN usermod -aG kvm root
