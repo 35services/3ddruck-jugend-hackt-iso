@@ -13,6 +13,8 @@ Bootstraps a persistent Debian-based live system on a USB stick.
 - cache customized system in order to speed up further USB creation
 - supports Austrian German *<3 Jh Linz, love you*
 - supports Swiss keyboard layout *<3 Jh Zurich, love you*
+- install Flatpak bundles (`.flatpak` files) for apps not available on Flathub
+- install Inkscape extensions from `.zip` archives, e.g. for the AxiDraw pen plotter
 
 ## Usage
 
@@ -29,7 +31,33 @@ nano config
 
 ```
 
+### 3D-Druck-AG configuration
+
+This branch adjusts `config.sample` for a 3D printing and plotting club ("3D-Druck AG"):
+
+- **Added:**
+  - [PrusaSlicer](https://flathub.org/apps/com.prusa3d.PrusaSlicer) from Flathub
+  - [Snapmaker Orca](https://github.com/Snapmaker/OrcaSlicer) v2.4.0 as a Flatpak bundle, since it isn't on Flathub
+  - the [AxiDraw extension](https://wiki.evilmadscientist.com/Axidraw_Software_Installation) v3.9.5 for Inkscape
+- **Removed:** LibreOffice, Godot, Fritzing, Android SDK, Android Studio, Zulip and TIC-80
+
+Slic3r is not included: it is neither on Flathub nor in Debian sid. Its maintained successor is PrusaSlicer.
+
+### Flatpak bundles
+
+Apps that are not on Flathub can be installed from `.flatpak` bundle files by listing their download URLs in `ADDITIONAL_FLATPAK_BUNDLES`. Bundles must be built for x86_64. Their runtimes are installed from Flathub. Bundles don't update automatically, so bump the URL to update an app.
+
+### Inkscape extensions
+
+`INKSCAPE_EXTENSION_ZIPS` lists `.zip` archives to install into the live user's Inkscape extensions directory (`/etc/skel/.config/inkscape/extensions`). If an archive contains a single top-level folder, its contents are copied rather than the folder itself. This requires `inkscape` in `ADDITIONAL_PACKAGES`.
+
+Since the files are copied from `/etc/skel`, they only reach users created from the image. A stick whose persistence partition already contains the user won't receive them.
+
+To connect to an AxiDraw over USB, the user needs to be in the `dialout` group, which `data/live.conf` already sets.
+
 ### Build using Docker
+
+**Note:** The prebuilt image `registry.git.alpaka.space/aic/jugendhackt-iso:main` may not contain `curl` and `unzip` yet, which are needed for Flatpak bundles and Inkscape extensions. In that case, build the image locally with `docker build -t jugendhackt-iso .` and use `jugendhackt-iso` instead of the registry image in the commands below.
 
 ```shell
 # install Docker in case you didn't do so before
@@ -67,7 +95,7 @@ docker run --privileged -ti --rm \
 
 ### Standalone using system libraries
 
-The script will check all dependencies and tell you how to install them.
+The script will check all dependencies and tell you how to install them. Downloading Flatpak bundles and Inkscape extensions requires `curl` and `unzip`.
 
 ```shell
 # ensure we can use bubblewrap (https://deb.li/bubblewrap)
@@ -96,7 +124,7 @@ The jugendhackt-iso script passes two general stages :
 1. boostrap a base system according to a config file or use a cached version
 2. creata disk image to simply flash on a USB drive, make it bootable, persistent and Secure Boot compatible
 
-The first stage uses `deboostrap` in order to boostrap a Debian base system. Next, APT packages and flatpaks are installed according to the configuration and locale settings are applied.
+The first stage uses `deboostrap` in order to boostrap a Debian base system. Next, APT packages, flatpaks, Flatpak bundles and Inkscape extensions are installed according to the configuration and locale settings are applied.
 
 Once the bootstrap is done, the compressed base system is stored in `/var/cache/jugendhackt-iso` to reuse it for the next use of the same configuration.
 
