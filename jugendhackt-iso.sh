@@ -505,7 +505,7 @@ function qemu_test () {
          }
          "login: " {
              sleep 1
-             send "alpaka\n"
+             send "druck\n"
              exp_continue
          }
          "Passwort: " {

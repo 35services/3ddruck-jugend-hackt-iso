@@ -42,6 +42,8 @@ This branch adjusts `config.sample` for a 3D printing and plotting club ("3D-Dru
   - the [AxiDraw extension](https://wiki.evilmadscientist.com/Axidraw_Software_Installation) v3.9.5 for Inkscape
 - **Removed:** LibreOffice, Godot, Fritzing, Android SDK, Android Studio, Zulip and TIC-80
 
+The live user is `druck` with the Debian Live default password `live`, set in `data/live.conf`. The user is only created on a stick's first boot: a stick whose persistence partition already has a user keeps that user.
+
 Slic3r is not included: it is neither on Flathub nor in Debian sid. Its maintained successor is PrusaSlicer.
 
 ### Flatpak bundles
