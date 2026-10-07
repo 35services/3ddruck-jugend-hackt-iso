@@ -28,9 +28,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 fi
 
 function check_dependencies() {
-  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)"
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)\n - curl (curl)"
 
-  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect; do
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect curl; do
     if [[ ! -x "$(command -v $COMMAND)" ]]; then
       echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
       exit 1
@@ -236,6 +236,12 @@ function build_erofs() {
 
   for FLATPAK in $ADDITIONAL_FLATPAKS; do
     bwrap_env "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
+  done
+
+  for BUNDLE_URL in $ADDITIONAL_FLATPAK_BUNDLES; do
+    curl -fL -o "$DEBOOTSTRAP_ROOT/tmp/bundle.flatpak" "$BUNDLE_URL"
+    bwrap_env "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system -y --bundle /tmp/bundle.flatpak
+    rm "$DEBOOTSTRAP_ROOT/tmp/bundle.flatpak"
   done
   bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
 

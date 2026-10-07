@@ -15,7 +15,11 @@ TASK_LANGUAGES="arabic czech croatian english french german hungarian italian po
 ADDITIONAL_PACKAGES="git vim nano webext-ublock-origin-firefox libreoffice godot3 gimp inkscape krita fritzing android-sdk nodejs npm vlc docker.io docker-compose docker-buildx"
 
 # additional Flatpak packages to include. Must be available on Flathub as of now
-ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.google.AndroidStudio com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 com.github.libresprite.LibreSprite org.processing.processingide org.zulip.Zulip io.github.ungoogled_software.ungoogled_chromium com.collaboraoffice.Office"
+ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.google.AndroidStudio com.vscodium.codium edu.mit.Scratch com.tic80.TIC_80 com.github.libresprite.LibreSprite org.processing.processingide org.zulip.Zulip io.github.ungoogled_software.ungoogled_chromium com.collaboraoffice.Office com.prusa3d.PrusaSlicer"
+
+# additional Flatpak bundles (.flatpak files) to download and install, for apps not on Flathub.
+# Must be built for x86_64. Bundles do not auto-update, bump the URLs to update
+ADDITIONAL_FLATPAK_BUNDLES="https://github.com/Snapmaker/OrcaSlicer/releases/download/v2.4.0/Snapmaker_Orca-Linux-flatpak_V2.4.0_x86_64.flatpak"
 
 DEBCONF_SELECTIONS=(
     "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true"
