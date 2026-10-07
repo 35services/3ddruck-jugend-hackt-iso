@@ -38,7 +38,7 @@ This branch adjusts `config.sample` for a 3D printing and plotting club ("3D-Dru
 
 - **Added:**
   - [OpenSCAD](https://openscad.org/) and [FreeCAD](https://www.freecad.org/) from Debian
-  - [PrusaSlicer](https://flathub.org/apps/com.prusa3d.PrusaSlicer) from Flathub
+  - [PrusaSlicer](https://flathub.org/apps/com.prusa3d.PrusaSlicer) and [UltiMaker Cura](https://flathub.org/apps/com.ultimaker.cura) from Flathub
   - [Snapmaker Orca](https://github.com/Snapmaker/OrcaSlicer) v2.4.0 as a Flatpak bundle, since it isn't on Flathub
   - the [AxiDraw extension](https://wiki.evilmadscientist.com/Axidraw_Software_Installation) v3.9.5 for Inkscape
 - **Removed:** LibreOffice, Godot, Fritzing, Android SDK, Android Studio, Zulip and TIC-80
