@@ -31,5 +31,11 @@ DEBCONF_SELECTIONS=(
     "kdump-tools kdump-tools/use_kdump select false"
 )
 
+# public SSH keys allowed to log in as the live user. If set, openssh-server is installed and
+# password logins via SSH are disabled. Leave empty to not install an SSH server
+SSH_AUTHORIZED_KEYS=(
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSeMYYS42X+Q3rVv6souuzIvPc2lvrvBetwd2CBn7B6 falkorichter@MacBook-Pro.fritz.box"
+)
+
 # your chance to remove bloatware you don't want to have installed
 PACKAGE_REMOVAL=""

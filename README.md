@@ -14,6 +14,7 @@ Bootstraps a persistent Debian-based live system on a USB stick.
 - supports Austrian German *<3 Jh Linz, love you*
 - supports Swiss keyboard layout *<3 Jh Zurich, love you*
 - install Flatpak bundles (`.flatpak` files) for apps not available on Flathub
+- optional SSH access with public keys only
 - install Inkscape extensions from `.zip` archives, e.g. for the AxiDraw pen plotter
 
 ## Usage
@@ -57,6 +58,10 @@ Apps that are not on Flathub can be installed from `.flatpak` bundle files by li
 Since the files are copied from `/etc/skel`, they only reach users created from the image. A stick whose persistence partition already contains the user won't receive them.
 
 To connect to an AxiDraw over USB, the user needs to be in the `dialout` group, which `data/live.conf` already sets.
+
+### SSH access
+
+Public keys listed in `SSH_AUTHORIZED_KEYS` can log in as the live user via SSH, e.g. `ssh druck@<ip-address>`. If the list is set, the build installs `openssh-server` and `data/sshd_config.conf` disables password and root logins via SSH. The keys are stored in `/etc/ssh/jugendhackt_authorized_keys` inside the image, so they also work on sticks whose persistence partition already contains the user. Each stick generates its own SSH host keys on first boot.
 
 ### Build using Docker
 

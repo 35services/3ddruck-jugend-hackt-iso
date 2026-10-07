@@ -222,6 +222,17 @@ function build_erofs() {
   chroot_env "$DEBOOTSTRAP_ROOT" apt install -y $ADDITIONAL_PACKAGES
   chroot_env "$DEBOOTSTRAP_ROOT" apt purge -y $PACKAGE_REMOVAL
 
+  if [[ ${#SSH_AUTHORIZED_KEYS[@]} -gt 0 ]]; then
+    echo "Setting up SSH access..."
+    chroot_env "$DEBOOTSTRAP_ROOT" apt install -y openssh-server
+    # live-config generates unique host keys on each stick's first boot
+    rm -f "$DEBOOTSTRAP_ROOT"/etc/ssh/ssh_host_*
+    printf '%s\n' "${SSH_AUTHORIZED_KEYS[@]}" > "$DEBOOTSTRAP_ROOT/etc/ssh/jugendhackt_authorized_keys"
+    chmod 644 "$DEBOOTSTRAP_ROOT/etc/ssh/jugendhackt_authorized_keys"
+    cp data/sshd_config.conf "$DEBOOTSTRAP_ROOT/etc/ssh/sshd_config.d/50-jugendhackt-iso.conf"
+    chmod 644 "$DEBOOTSTRAP_ROOT/etc/ssh/sshd_config.d/50-jugendhackt-iso.conf"
+  fi
+
   chroot_env "$DEBOOTSTRAP_ROOT" apt autoremove -y
   chroot_env "$DEBOOTSTRAP_ROOT" apt clean
   chroot_env "$DEBOOTSTRAP_ROOT" rm -rf /var/cache/apt/* || true
