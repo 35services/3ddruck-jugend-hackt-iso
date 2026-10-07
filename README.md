@@ -36,6 +36,7 @@ nano config
 This branch adjusts `config.sample` for a 3D printing and plotting club ("3D-Druck AG"):
 
 - **Added:**
+  - [OpenSCAD](https://openscad.org/) from Debian
   - [PrusaSlicer](https://flathub.org/apps/com.prusa3d.PrusaSlicer) from Flathub
   - [Snapmaker Orca](https://github.com/Snapmaker/OrcaSlicer) v2.4.0 as a Flatpak bundle, since it isn't on Flathub
   - the [AxiDraw extension](https://wiki.evilmadscientist.com/Axidraw_Software_Installation) v3.9.5 for Inkscape
