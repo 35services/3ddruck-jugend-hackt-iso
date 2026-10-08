@@ -46,6 +46,11 @@ function load_config () {
 
   source "./config"
 
+  # logins that must not be committed, see secrets.sample
+  if [[ -f secrets ]]; then
+    source "./secrets"
+  fi
+
   CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
   IDENTIFIER="${CONFIG_CHECKSUM}"
   CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
@@ -240,6 +245,8 @@ function build_erofs() {
     cp -r data/desktop/. "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/"
     printf 'Snapmaker-Konto der 3D-Druck-AG\n===============================\n\nBenutzer: %s\nPasswort: %s\n' \
       "$SNAPMAKER_USERNAME" "$SNAPMAKER_PASSWORD" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/snapmaker-konto.txt"
+    printf 'MakerWorld-Konto der 3D-Druck-AG\n================================\n\nBenutzer: %s\nPasswort: %s\n' \
+      "$MAKERWORLD_USERNAME" "$MAKERWORLD_PASSWORD" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/makerworld-konto.txt"
     cp data/copy-desktop-files.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
     chmod 755 "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
     cp data/copy-desktop-files.desktop "$DEBOOTSTRAP_ROOT/etc/xdg/autostart/copy-desktop-files.desktop"
@@ -567,8 +574,13 @@ case "${STAGE}" in
   "build")
     check_root
 
-    if [[ -z "$SNAPMAKER_PASSWORD" ]]; then
-      echo "Please set SNAPMAKER_PASSWORD in ./config to the password of the AG's Snapmaker account"
+    if [[ -z "$SNAPMAKER_USERNAME" || -z "$SNAPMAKER_PASSWORD" ]]; then
+      echo "Please copy ./secrets.sample to ./secrets and set SNAPMAKER_USERNAME and SNAPMAKER_PASSWORD to the login of the AG's Snapmaker account"
+      exit 1
+    fi
+
+    if [[ -z "$MAKERWORLD_USERNAME" || -z "$MAKERWORLD_PASSWORD" ]]; then
+      echo "Please copy ./secrets.sample to ./secrets and set MAKERWORLD_USERNAME and MAKERWORLD_PASSWORD to the login of the AG's MakerWorld account"
       exit 1
     fi
 

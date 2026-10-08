@@ -31,7 +31,10 @@ cp config.sample config
  
 nano config
 
-# required for the 3D-Druck-AG configuration: set SNAPMAKER_PASSWORD in config
+# required for the 3D-Druck-AG configuration: copy secrets.sample to secrets
+# and set SNAPMAKER_USERNAME, SNAPMAKER_PASSWORD, MAKERWORLD_USERNAME and MAKERWORLD_PASSWORD
+cp secrets.sample secrets
+nano secrets
 
 ```
 
@@ -66,7 +69,7 @@ To connect to an AxiDraw over USB, the user needs to be in the `dialout` group, 
 
 All files in `data/desktop` are copied to the live user's desktop on the first login, by `data/copy-desktop-files.sh` via an autostart entry. It uses the language-specific desktop folder (e.g. `Desktop` or `Schreibtisch`), runs once per user so deleted files are not restored, and also works for users that already exist on a stick. To show the files on the GNOME desktop, the build installs and enables the Desktop Icons NG extension. The 3D-Druck-AG configuration ships a German welcome text, `LIESMICH.txt`, and `axidraw.txt` with links to the AxiDraw documentation, third-party software and the AG's projects.
 
-The welcome text refers to `snapmaker-konto.txt`, which the build writes to the desktop with the login for the AG's Snapmaker account. Set `SNAPMAKER_PASSWORD` in your local `config` during setup: the build refuses to start without it. Since `config` is ignored by git, the password never ends up in the repository. It is stored in plain text on every stick, though.
+The welcome text refers to `snapmaker-konto.txt` and `makerworld-konto.txt`, which the build writes to the desktop with the logins for the AG's Snapmaker and MakerWorld accounts. Set `SNAPMAKER_USERNAME`, `SNAPMAKER_PASSWORD`, `MAKERWORLD_USERNAME` and `MAKERWORLD_PASSWORD` in `secrets` (a copy of `secrets.sample`) during setup: the build refuses to start without them. Since `secrets` is ignored by git, the login never ends up in the repository. It is stored in plain text on every stick, though. Changing only a login doesn't change the cache identifier, so delete the cached `.erofs` file to rebuild with a new login.
 
 ### SSH access
 
@@ -90,6 +93,7 @@ sudo sysctl kernel.unprivileged_userns_clone=1
 # once create a build cache for the current configuration
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
+    -v "$(pwd)/secrets":"/secrets" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     registry.git.alpaka.space/aic/jugendhackt-iso:main \
     /jugendhackt-iso.sh build
@@ -97,6 +101,7 @@ docker run --privileged -ti --rm \
 # run the script with access to all the resources it needs and flash the image onto the USB drive
 docker run --privileged -ti --rm \
     -v "$(pwd)/config":"/config" \
+    -v "$(pwd)/secrets":"/secrets" \
     -v "$(pwd)/cache":"/var/cache/jugendhackt-iso" \
     -v "/dev":"/dev" \
     registry.git.alpaka.space/aic/jugendhackt-iso:main \

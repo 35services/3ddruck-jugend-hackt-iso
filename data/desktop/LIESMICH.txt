@@ -13,6 +13,10 @@ Snapmaker-Konto
 ---------------
 Die Zugangsdaten stehen in snapmaker-konto.txt.
 
+MakerWorld-Konto
+----------------
+Die Zugangsdaten stehen in makerworld-konto.txt.
+
 3D-Druck
 --------
 - PrusaSlicer, Snapmaker Orca und UltiMaker Cura: 3D-Modelle (STL, 3MF)

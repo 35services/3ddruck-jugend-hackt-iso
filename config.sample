@@ -37,10 +37,5 @@ SSH_AUTHORIZED_KEYS=(
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSeMYYS42X+Q3rVv6souuzIvPc2lvrvBetwd2CBn7B6 falkorichter@MacBook-Pro.fritz.box"
 )
 
-# login for the AG's Snapmaker account, put on the desktop as snapmaker-konto.txt.
-# The password is required and must never be committed: set it in your local ./config only
-SNAPMAKER_USERNAME="snapmaker"
-SNAPMAKER_PASSWORD=""
-
 # your chance to remove bloatware you don't want to have installed
 PACKAGE_REMOVAL=""
