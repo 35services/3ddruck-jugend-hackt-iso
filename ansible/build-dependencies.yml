@@ -1,0 +1,72 @@
+---
+# Prepares an x86_64 Ubuntu or Debian machine to build the image, either with
+# Docker or standalone (see README.md).
+#
+# Usage: ansible-playbook -i inventory.ini build-dependencies.yml --ask-become-pass
+
+- name: Install the dependencies to build the image
+  hosts: build
+  become: true
+
+  tasks:
+    - name: Make sure the machine is x86_64
+      ansible.builtin.assert:
+        that: ansible_facts.architecture == "x86_64"
+        fail_msg: "The image can only be built on x86_64, this machine is {{ ansible_facts.architecture }}"
+
+    - name: Install Docker, git and the tools used by jugendhackt-iso.sh
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - git
+          # same packages as in the Dockerfile, for the standalone build
+          - debootstrap
+          - debian-archive-keyring
+          - gdisk
+          - e2fsprogs
+          - dosfstools
+          - erofs-utils
+          - udev
+          - bubblewrap
+          - util-linux
+          - parted
+          - expect
+          - qemu-system-x86
+          - ovmf
+          - curl
+          - unzip
+        state: present
+        update_cache: true
+
+    - name: Start Docker on boot
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Allow the user to use Docker and KVM
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups:
+          - docker
+          - kvm
+        append: true
+
+    # Flatpak installs during the build run in bubblewrap, which needs
+    # unprivileged user namespaces. Containers use the host's kernel, so this
+    # is also needed for the Docker build. The "-" ignores keys this kernel
+    # doesn't have, e.g. the AppArmor restriction that exists since Ubuntu 24.04.
+    - name: Allow unprivileged user namespaces
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/60-jugendhackt-iso.conf
+        content: |
+          -kernel.unprivileged_userns_clone = 1
+          -kernel.apparmor_restrict_unprivileged_userns = 0
+        mode: "0644"
+      notify: Apply sysctl settings
+
+  handlers:
+    - name: Apply sysctl settings
+      ansible.builtin.service:
+        name: systemd-sysctl
+        state: restarted

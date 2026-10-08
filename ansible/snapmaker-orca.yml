@@ -1,0 +1,79 @@
+---
+# Installs Snapmaker Orca from the Flatpak bundle on its GitHub releases page,
+# since it isn't available on Flathub.
+#
+# Usage: ansible-playbook -i inventory.ini snapmaker-orca.yml --ask-become-pass
+#
+# An installed version is not updated. To update, uninstall it first with
+# flatpak uninstall --system io.github.Snapmaker.Snapmaker_Orca
+
+- name: Install Snapmaker Orca
+  hosts: build
+  become: true
+  vars:
+    snapmaker_orca_version: "2.4.0"
+    snapmaker_orca_url: "https://github.com/Snapmaker/OrcaSlicer/releases/download/v{{ snapmaker_orca_version }}/Snapmaker_Orca-Linux-flatpak_V{{ snapmaker_orca_version }}_x86_64.flatpak"
+    snapmaker_orca_app_id: io.github.Snapmaker.Snapmaker_Orca
+    # runtime from the app's Flatpak manifest, installed from Flathub
+    snapmaker_orca_runtime: org.gnome.Platform//49
+    snapmaker_orca_bundle: /tmp/snapmaker-orca.flatpak
+
+  tasks:
+    - name: Install Flatpak
+      ansible.builtin.apt:
+        name: flatpak
+        state: present
+        update_cache: true
+
+    - name: Add the Flathub remote
+      ansible.builtin.command: flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      changed_when: false
+
+    - name: Check whether the runtime is installed
+      ansible.builtin.command: flatpak info --system {{ snapmaker_orca_runtime }}
+      register: runtime_info
+      changed_when: false
+      failed_when: false
+
+    - name: Install the runtime
+      ansible.builtin.command: flatpak install --system --noninteractive -y flathub {{ snapmaker_orca_runtime }}
+      when: runtime_info.rc != 0
+
+    - name: Check whether Snapmaker Orca is installed
+      ansible.builtin.command: flatpak info --system {{ snapmaker_orca_app_id }}
+      register: app_info
+      changed_when: false
+      failed_when: false
+
+    - name: Install Snapmaker Orca
+      when: app_info.rc != 0
+      block:
+        - name: Download the Flatpak bundle
+          ansible.builtin.get_url:
+            url: "{{ snapmaker_orca_url }}"
+            dest: "{{ snapmaker_orca_bundle }}"
+            mode: "0644"
+
+        - name: Install the Flatpak bundle
+          ansible.builtin.command: flatpak install --system --noninteractive -y --bundle {{ snapmaker_orca_bundle }}
+
+      always:
+        - name: Remove the downloaded bundle
+          ansible.builtin.file:
+            path: "{{ snapmaker_orca_bundle }}"
+            state: absent
+
+    # replaces the app menu entry, see data/applications for why
+    - name: Make sure the user's applications folder exists
+      become: false
+      ansible.builtin.file:
+        path: ~/.local/share/applications
+        state: directory
+        mode: "0755"
+
+    - name: Start Snapmaker Orca with an English locale from the app menu
+      become: false
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../data/applications/io.github.Snapmaker.Snapmaker_Orca.desktop"
+        dest: ~/.local/share/applications/io.github.Snapmaker.Snapmaker_Orca.desktop
+        mode: "0644"

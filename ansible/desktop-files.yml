@@ -1,0 +1,84 @@
+---
+# Copies the files from data/desktop to the user's desktop, like the image does,
+# and writes snapmaker-konto.txt and makerworld-konto.txt with the logins for the
+# AG's Snapmaker and MakerWorld accounts. The logins are read from ../secrets (ignored by git, see secrets.sample),
+# the same file jugendhackt-iso.sh uses.
+#
+# Usage: ansible-playbook -i inventory.ini desktop-files.yml
+
+- name: Put the AG files on the desktop
+  hosts: build
+  become: false
+  vars:
+    snapmaker_username: >-
+      {{ lookup('ansible.builtin.ini', 'SNAPMAKER_USERNAME', file=playbook_dir ~ '/../secrets',
+                type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+    snapmaker_password: >-
+      {{ lookup('ansible.builtin.ini', 'SNAPMAKER_PASSWORD', file=playbook_dir ~ '/../secrets',
+                type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+    makerworld_username: >-
+      {{ lookup('ansible.builtin.ini', 'MAKERWORLD_USERNAME', file=playbook_dir ~ '/../secrets',
+                type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+    makerworld_password: >-
+      {{ lookup('ansible.builtin.ini', 'MAKERWORLD_PASSWORD', file=playbook_dir ~ '/../secrets',
+                type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+
+  tasks:
+    - name: Make sure the Snapmaker login is set
+      ansible.builtin.assert:
+        that:
+          - snapmaker_username | length > 0
+          - snapmaker_password | length > 0
+        fail_msg: Please copy secrets.sample to secrets and set SNAPMAKER_USERNAME and SNAPMAKER_PASSWORD
+      no_log: true
+
+    - name: Make sure the MakerWorld login is set
+      ansible.builtin.assert:
+        that:
+          - makerworld_username | length > 0
+          - makerworld_password | length > 0
+        fail_msg: Please copy secrets.sample to secrets and set MAKERWORLD_USERNAME and MAKERWORLD_PASSWORD
+      no_log: true
+
+    # the folder name depends on the language, e.g. "Desktop" or "Schreibtisch"
+    - name: Find the desktop folder
+      ansible.builtin.command: xdg-user-dir DESKTOP
+      register: desktop_dir
+      changed_when: false
+      check_mode: false
+
+    - name: Make sure the desktop folder exists
+      ansible.builtin.file:
+        path: "{{ desktop_dir.stdout }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy the files from data/desktop
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../data/desktop/"
+        dest: "{{ desktop_dir.stdout }}/"
+        mode: "0644"
+
+    - name: Write the Snapmaker login
+      ansible.builtin.copy:
+        dest: "{{ desktop_dir.stdout }}/snapmaker-konto.txt"
+        content: |
+          Snapmaker-Konto der 3D-Druck-AG
+          ===============================
+
+          Benutzer: {{ snapmaker_username }}
+          Passwort: {{ snapmaker_password }}
+        mode: "0600"
+      no_log: true
+
+    - name: Write the MakerWorld login
+      ansible.builtin.copy:
+        dest: "{{ desktop_dir.stdout }}/makerworld-konto.txt"
+        content: |
+          MakerWorld-Konto der 3D-Druck-AG
+          ================================
+
+          Benutzer: {{ makerworld_username }}
+          Passwort: {{ makerworld_password }}
+        mode: "0600"
+      no_log: true

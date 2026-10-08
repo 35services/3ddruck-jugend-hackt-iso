@@ -1,0 +1,53 @@
+---
+# Logs the user in automatically and turns off the lock screen, so the kids can
+# use the computer without a password. The password is still needed for sudo.
+#
+# Usage: ansible-playbook -i inventory.ini auto-login.yml --ask-become-pass
+#
+# Takes effect after the next restart.
+
+- name: Log in without a password
+  hosts: build
+  become: true
+  vars:
+    auto_login_user: "{{ ansible_user }}"
+
+  tasks:
+    - name: Turn on automatic login in GDM
+      ansible.builtin.lineinfile:
+        path: /etc/gdm3/custom.conf
+        regexp: "^#?\\s*{{ item.key }}\\s*="
+        line: "{{ item.key }} = {{ item.value }}"
+        insertafter: '^\[daemon\]'
+      loop:
+        - { key: AutomaticLoginEnable, value: "true" }
+        - { key: AutomaticLogin, value: "{{ auto_login_user }}" }
+
+    # system-wide defaults, so they also apply to users without their own setting
+    - name: Use the system dconf database for users
+      ansible.builtin.copy:
+        dest: /etc/dconf/profile/user
+        content: |
+          user-db:user
+          system-db:local
+        mode: "0644"
+
+    - name: Make sure the dconf settings folder exists
+      ansible.builtin.file:
+        path: /etc/dconf/db/local.d
+        state: directory
+        mode: "0755"
+
+    - name: Turn off the lock screen
+      ansible.builtin.copy:
+        dest: /etc/dconf/db/local.d/00-no-lock-screen
+        content: |
+          [org/gnome/desktop/screensaver]
+          lock-enabled=false
+          ubuntu-lock-on-suspend=false
+        mode: "0644"
+      register: lock_screen
+
+    - name: Update the dconf database
+      ansible.builtin.command: dconf update
+      when: lock_screen.changed

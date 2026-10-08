@@ -69,17 +69,30 @@ To connect to an AxiDraw over USB, the user needs to be in the `dialout` group, 
 
 All files in `data/desktop` are copied to the live user's desktop on the first login, by `data/copy-desktop-files.sh` via an autostart entry. It uses the language-specific desktop folder (e.g. `Desktop` or `Schreibtisch`), runs once per user so deleted files are not restored, and also works for users that already exist on a stick. To show the files on the GNOME desktop, the build installs and enables the Desktop Icons NG extension. The 3D-Druck-AG configuration ships a German welcome text, `LIESMICH.txt`, and `axidraw.txt` with links to the AxiDraw documentation, third-party software and the AG's projects.
 
-The welcome text refers to `snapmaker-konto.txt` and `makerworld-konto.txt`, which the build writes to the desktop with the logins for the AG's Snapmaker and MakerWorld accounts. Set `SNAPMAKER_USERNAME`, `SNAPMAKER_PASSWORD`, `MAKERWORLD_USERNAME` and `MAKERWORLD_PASSWORD` in `secrets` (a copy of `secrets.sample`) during setup: the build refuses to start without them. Since `secrets` is ignored by git, the login never ends up in the repository. It is stored in plain text on every stick, though. Changing only a login doesn't change the cache identifier, so delete the cached `.erofs` file to rebuild with a new login.
+The welcome text refers to `snapmaker-konto.txt` and `makerworld-konto.txt`, which the build writes to the desktop with the logins for the AG's Snapmaker and MakerWorld accounts. Set `SNAPMAKER_USERNAME`, `SNAPMAKER_PASSWORD`, `MAKERWORLD_USERNAME` and `MAKERWORLD_PASSWORD` in `secrets` (a copy of `secrets.sample`) during setup: the build refuses to start without them. Since `secrets` is ignored by git, the login never ends up in the repository. It is stored in plain text on every stick, though. The Ansible playbook `ansible/desktop-files.yml` reads the same file. Changing only a login doesn't change the cache identifier, so delete the cached `.erofs` file to rebuild with a new login.
 
 ### App menu entries
 
-The `.desktop` files in `data/applications` are copied to `/etc/skel/.local/share/applications`, where they replace the app menu entries of installed apps with the same name.
+The `.desktop` files in `data/applications` are copied to `/etc/skel/.local/share/applications`, where they replace the app menu entries of installed apps with the same name. `ansible/snapmaker-orca.yml` installs the same entry on a machine.
 
 Currently this fixes Snapmaker Orca: its startup script forces `LC_ALL=C.UTF-8`, which makes its web view fail with "invalid language tag", so no online content loads. The replacement entry starts the app directly with `LC_ALL=en_US.UTF-8`. Like the Inkscape extensions, this only reaches users created from the image.
 
 ### SSH access
 
 Public keys listed in `SSH_AUTHORIZED_KEYS` can log in as the live user via SSH, e.g. `ssh druck@<ip-address>`. If the list is set, the build installs `openssh-server` and `data/sshd_config.conf` disables password and root logins via SSH. The keys are stored in `/etc/ssh/jugendhackt_authorized_keys` inside the image, so they also work on sticks whose persistence partition already contains the user. Each stick generates its own SSH host keys on first boot.
+
+### Ansible
+
+The playbooks in `ansible/` set up an installed Ubuntu or Debian machine, such as the AG's laptop, which is listed in `ansible/inventory.ini`. Run them from the `ansible/` folder, e.g. `ansible-playbook -i inventory.ini auto-login.yml --ask-become-pass`. Playbooks that need sudo ask for the user's password with `--ask-become-pass`. Ubuntu 25.10 and newer use sudo-rs, whose password prompt Ansible doesn't recognize, so it times out with "Timeout waiting for privilege escalation prompt". The inventory therefore sets `ansible_become_exe=sudo.ws`, the classic sudo that Ubuntu still installs.
+
+- `build-dependencies.yml` installs Docker and the tools to build the image.
+- `snapmaker-orca.yml` installs Snapmaker Orca and its fixed app menu entry (see [App menu entries](#app-menu-entries)).
+- `desktop-files.yml` copies `data/desktop` to the user's desktop and writes the account logins from `secrets` (see [Desktop files](#desktop-files)). It doesn't need sudo.
+- `auto-login.yml` lets the kids use the machine without a password: GDM logs the user in automatically, and the lock screen is off, also after suspend. sudo still asks for the password. It takes effect after the next restart.
+
+`auto-login.yml` doesn't change power settings. With Ubuntu's defaults, the screen turns off after 5 minutes without use. On battery, the machine suspends after 15 minutes, and it also suspends when the lid is closed. On the AG's laptop, automatic suspend while plugged in is turned off in the settings, so it stays awake unless the lid is closed.
+
+Without a password at login, Ubuntu's login keyring stays locked, so apps that store passwords, such as a browser, may ask for it. To prevent this, give the keyring an empty password once on the machine: in *Passwörter und Verschlüsselung* (Seahorse), right-click *Anmeldung*, choose *Passwort ändern* and leave the new password empty. Saved passwords are then stored unencrypted.
 
 ### Build using Docker
 
