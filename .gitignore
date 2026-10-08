@@ -2,3 +2,4 @@ config
 cache
 .idea
 *.img
+.DS_Store
