@@ -276,6 +276,11 @@ function build_erofs() {
   done
   bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
 
+  # app menu entries in data/applications replace the ones of installed apps,
+  # since the user's entries take precedence over Flatpak's
+  mkdir -p "$DEBOOTSTRAP_ROOT/etc/skel/.local/share/applications"
+  cp data/applications/*.desktop "$DEBOOTSTRAP_ROOT/etc/skel/.local/share/applications/"
+
   echo "Installing additional Inkscape extensions..."
 
   INKSCAPE_EXTENSIONS_DIR="$DEBOOTSTRAP_ROOT/etc/skel/.config/inkscape/extensions"

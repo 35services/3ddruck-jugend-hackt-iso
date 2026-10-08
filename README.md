@@ -71,6 +71,12 @@ All files in `data/desktop` are copied to the live user's desktop on the first l
 
 The welcome text refers to `snapmaker-konto.txt` and `makerworld-konto.txt`, which the build writes to the desktop with the logins for the AG's Snapmaker and MakerWorld accounts. Set `SNAPMAKER_USERNAME`, `SNAPMAKER_PASSWORD`, `MAKERWORLD_USERNAME` and `MAKERWORLD_PASSWORD` in `secrets` (a copy of `secrets.sample`) during setup: the build refuses to start without them. Since `secrets` is ignored by git, the login never ends up in the repository. It is stored in plain text on every stick, though. Changing only a login doesn't change the cache identifier, so delete the cached `.erofs` file to rebuild with a new login.
 
+### App menu entries
+
+The `.desktop` files in `data/applications` are copied to `/etc/skel/.local/share/applications`, where they replace the app menu entries of installed apps with the same name.
+
+Currently this fixes Snapmaker Orca: its startup script forces `LC_ALL=C.UTF-8`, which makes its web view fail with "invalid language tag", so no online content loads. The replacement entry starts the app directly with `LC_ALL=en_US.UTF-8`. Like the Inkscape extensions, this only reaches users created from the image.
+
 ### SSH access
 
 Public keys listed in `SSH_AUTHORIZED_KEYS` can log in as the live user via SSH, e.g. `ssh druck@<ip-address>`. If the list is set, the build installs `openssh-server` and `data/sshd_config.conf` disables password and root logins via SSH. The keys are stored in `/etc/ssh/jugendhackt_authorized_keys` inside the image, so they also work on sticks whose persistence partition already contains the user. Each stick generates its own SSH host keys on first boot.

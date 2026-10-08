@@ -1,0 +1,17 @@
+# Replaces the app menu entry of the Snapmaker Orca Flatpak. Its entrypoint script
+# forces LC_ALL=C.UTF-8, which breaks the web view with "invalid language tag".
+# This starts the app directly with an English locale instead.
+# TODO: remove once Snapmaker Orca no longer forces LC_ALL=C.UTF-8
+[Desktop Entry]
+Name=Snapmaker Orca
+GenericName=3D Printing Software
+Icon=io.github.Snapmaker.Snapmaker_Orca
+Exec=/usr/bin/flatpak run --branch=master --arch=x86_64 --command=/app/bin/snapmaker-orca --env=LC_ALL=en_US.UTF-8 --file-forwarding io.github.Snapmaker.Snapmaker_Orca @@u %U @@
+Terminal=false
+Type=Application
+MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/prs.wavefront-obj;application/x-amf;
+Categories=Graphics;3DGraphics;Engineering;
+Keywords=3D;Printing;Slicer;slice;3D;printer;convert;gcode;stl;obj;amf;SLA
+StartupNotify=false
+StartupWMClass=snapmaker-orca
+X-Flatpak=io.github.Snapmaker.Snapmaker_Orca
