@@ -15,7 +15,7 @@ TASK_LANGUAGES="arabic czech croatian english french german hungarian italian po
 ADDITIONAL_PACKAGES="git vim nano webext-ublock-origin-firefox gimp inkscape krita openscad freecad nodejs npm vlc docker.io docker-compose docker-buildx"
 
 # additional Flatpak packages to include. Must be available on Flathub as of now
-ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.jetbrains.IntelliJ-IDEA-Community com.vscodium.codium edu.mit.Scratch com.github.libresprite.LibreSprite org.processing.processingide io.github.ungoogled_software.ungoogled_chromium com.collaboraoffice.Office com.prusa3d.PrusaSlicer com.ultimaker.cura"
+ADDITIONAL_FLATPAKS="cc.arduino.IDE2 com.vscodium.codium edu.mit.Scratch org.processing.processingide io.github.ungoogled_software.ungoogled_chromium com.prusa3d.PrusaSlicer com.ultimaker.cura"
 
 # additional Flatpak bundles (.flatpak files) to download and install, for apps not on Flathub.
 # Must be built for x86_64. Bundles do not auto-update, bump the URLs to update

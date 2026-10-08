@@ -47,7 +47,8 @@ This branch adjusts `config.sample` for a 3D printing and plotting club ("3D-Dru
   - [PrusaSlicer](https://flathub.org/apps/com.prusa3d.PrusaSlicer) and [UltiMaker Cura](https://flathub.org/apps/com.ultimaker.cura) from Flathub
   - [Snapmaker Orca](https://github.com/Snapmaker/OrcaSlicer) v2.4.0 as a Flatpak bundle, since it isn't on Flathub
   - the [AxiDraw extension](https://wiki.evilmadscientist.com/Axidraw_Software_Installation) v3.9.5 for Inkscape
-- **Removed:** LibreOffice, Godot, Fritzing, Android SDK, Android Studio, Zulip and TIC-80
+- **Removed:** IntelliJ IDEA, Collabora Office, LibreSprite, Godot, Fritzing, Android SDK, Android Studio, Zulip and TIC-80
+- **Kept:** LibreOffice as the only office suite. It's no longer listed in `ADDITIONAL_PACKAGES`, but Debian's `gnome` meta package installs it anyway.
 
 The live user is `druck` with the Debian Live default password `live`, set in `data/live.conf`. The user is only created on a stick's first boot: a stick whose persistence partition already has a user keeps that user.
 
