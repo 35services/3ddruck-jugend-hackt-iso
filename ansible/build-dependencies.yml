@@ -28,6 +28,7 @@
           - erofs-utils
           - udev
           - bubblewrap
+          - flatpak
           - util-linux
           - parted
           - expect

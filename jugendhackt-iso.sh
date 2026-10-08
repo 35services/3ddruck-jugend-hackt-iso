@@ -28,9 +28,9 @@ if [[ "--help" == "$STAGE" || "-h" == "$STAGE" || -z "$STAGE" ]]; then
 fi
 
 function check_dependencies() {
-  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - fallocate (util-linux)\n - expect (expect)\n - curl (curl)\n - unzip (unzip)"
+  REQUIRED_LIBRARIES=" not found.\n\nPlease ensure the following packages are installed:\n\n- debootstrap (debootstrap)\n- sgdisk (gdisk)\n- mkfs.ext4 (e2fsprogs)\n- mkfs.msdos (dosfstools)\n- mkfs.erofs (erofs-utils)\n - udevadm (udev)\n - bwrap (bubblewrap)\n - flatpak (flatpak)\n - fallocate (util-linux)\n - expect (expect)\n - curl (curl)\n - unzip (unzip)"
 
-  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap fallocate expect curl unzip; do
+  for COMMAND in debootstrap sgdisk mkfs.ext4 mkfs.msdos mkfs.erofs udevadm bwrap flatpak fallocate expect curl unzip; do
     if [[ ! -x "$(command -v $COMMAND)" ]]; then
       echo -e "${COMMAND}${REQUIRED_LIBRARIES}"
       exit 1
@@ -154,25 +154,12 @@ chroot_env () {
     "${@:2}"
 }
 
-bwrap_env () {
-  bwrap \
-    --bind "$1" / \
-    --dev /dev \
-    --proc /proc \
-    --bind /sys /sys \
-    --bind /run /run \
-    --clearenv \
-    --setenv DEBIAN_FRONTEND noninteractive \
-    --setenv XDG_CURRENT_DESKTOP GNOME \
-    --setenv GDMSESSION gnome \
-    --setenv DESKTOP_SESSION gnome \
-    --setenv PATH /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/games:/usr/games \
-    --setenv XDG_CONFIG_DIRS /etc/xdg \
-    --setenv DEFAULT_XDG_CONFIG_DIRS /etc/xdg \
-    --setenv XDG_DATA_DIRS /usr/share/gnome:/home/user/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share \
-    --setenv XDG_DATA_HOME /usr/local/share/:/usr/share/:/var/lib/flatpak/exports/share \
-    --setenv DEFAULT_XDG_DATA_DIRS /usr/local/share/:/usr/share/ \
-    "${@:2}"
+# Runs flatpak from the build environment on the new system's installation.
+# Running it inside the new system with bwrap doesn't work: flatpak starts bwrap
+# itself, e.g. for triggers and extra data, and bwrap can't create namespaces
+# inside another bwrap ("bwrap: Creating new namespace failed").
+flatpak_env () {
+  FLATPAK_SYSTEM_DIR="$1/var/lib/flatpak" flatpak "${@:2}"
 }
 
 
@@ -262,19 +249,19 @@ function build_erofs() {
   chroot_env "$DEBOOTSTRAP_ROOT" sh -c 'grep /usr/bin/bwrap /var/lib/dpkg/statoverride || dpkg-statoverride --update --add root root 0755 /usr/bin/bwrap'
   echo kernel.unprivileged_userns_clone=1 > "$DEBOOTSTRAP_ROOT/etc/sysctl.d/50-bubblewrap.conf"
 
-  yes | bwrap_env "$DEBOOTSTRAP_ROOT" flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-  bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
+  yes | flatpak_env "$DEBOOTSTRAP_ROOT" remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  flatpak_env "$DEBOOTSTRAP_ROOT" update --noninteractive --system -y || true
 
   for FLATPAK in $ADDITIONAL_FLATPAKS; do
-    bwrap_env "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system --or-update -y flathub "$FLATPAK"
+    flatpak_env "$DEBOOTSTRAP_ROOT" install --noninteractive --system --or-update -y flathub "$FLATPAK"
   done
 
   for BUNDLE_URL in $ADDITIONAL_FLATPAK_BUNDLES; do
     curl -fL -o "$DEBOOTSTRAP_ROOT/tmp/bundle.flatpak" "$BUNDLE_URL"
-    bwrap_env "$DEBOOTSTRAP_ROOT" flatpak install --noninteractive --system -y --bundle /tmp/bundle.flatpak
+    flatpak_env "$DEBOOTSTRAP_ROOT" install --noninteractive --system -y --bundle "$DEBOOTSTRAP_ROOT/tmp/bundle.flatpak"
     rm "$DEBOOTSTRAP_ROOT/tmp/bundle.flatpak"
   done
-  bwrap_env "$DEBOOTSTRAP_ROOT" flatpak update --noninteractive --system -y || true
+  flatpak_env "$DEBOOTSTRAP_ROOT" update --noninteractive --system -y || true
 
   # app menu entries in data/applications replace the ones of installed apps,
   # since the user's entries take precedence over Flatpak's
