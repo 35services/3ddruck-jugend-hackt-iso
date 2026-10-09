@@ -322,6 +322,69 @@ took 25 GB before the Flatpaks were done. Roughly, the stick needs:
 
 So use a disk with 64 GB or more.
 
+## Building and flashing in one go
+
+`build-and-flash.sh` runs steps 4 to 7 and flashes the image onto USB sticks,
+without further interaction. Since erasing the sticks needs root, it runs with
+`sudo`, so you only enter the password once at the start.
+
+First find the sticks' permanent names. They contain the serial number, so a
+stick can't be confused with another disk, even if `sdb` and `sdc` swap:
+
+```sh
+lsblk -o NAME,SIZE,MODEL,SERIAL,LABEL,MOUNTPOINTS
+ls -l /dev/disk/by-id/ | grep -- '-0:0 '
+```
+
+Check what's on each stick before erasing it: two sticks of the same model look
+the same, and one of them might be a system you still need.
+
+Then, on the build machine:
+
+```sh
+cd /run/media/druck/workspace/jugendhackt-iso
+screen -S buildflash -L -Logfile ../build-and-flash.log \
+  sudo ./build-and-flash.sh /dev/disk/by-id/usb-…-0:0 /dev/disk/by-id/usb-…-0:0
+```
+
+Enter the password, check the `Stick:` lines it prints, and detach with
+`Ctrl-a d`. The script:
+
+1. checks that every stick is a whole USB disk and not the system disk
+2. deletes the old image. The cache name only depends on `config`, so without
+   this, a change in `data/` or the script wouldn't trigger a new build
+3. rebuilds the Docker image, builds the system, creates the image
+4. tests it in QEMU (step 7), and stops before touching the sticks if that fails
+5. unmounts the sticks' partitions, erases them with `wipefs` and flashes them
+   in parallel with `dd`
+6. reads every stick back and compares it with the image: `OK: /dev/sdX
+   matches the image`
+
+To list its steps without the rest of the output:
+
+```sh
+tr -d '\r' < ../build-and-flash.log | grep -aE '^=== |Test passed|^OK:|^FAILED'
+```
+
+## Monitoring panes in tmux
+
+On the Mac, a tmux window with Claude on the left and three panes on the right
+that show the build machine. Use its LAN IP address with `-4`: it's on cable and
+Wi-Fi at the same time, and over `.local` names or IPv6 the connection can
+freeze. The loop reconnects when the connection drops:
+
+```sh
+H=192.168.178.121
+tmux split-window -d -h -l 45% "while true; do ssh -4 -t -o ServerAliveInterval=15 $H 'tail -n 40 -F /run/media/druck/workspace/build-and-flash.log'; sleep 5; done"
+tmux split-window -d -v -t work:0.1 -l 55% "while true; do ssh -4 -t -o ServerAliveInterval=15 $H .local/bin/iostat-build; sleep 5; done"
+tmux split-window -d -v -t work:0.2 -l 30% "while true; do ssh -4 -t -o ServerAliveInterval=15 $H 'watch -n 10 df -h / /run/media/druck/workspace'; sleep 5; done"
+```
+
+`~/.local/bin/iostat-build` on the build machine runs
+`iostat -y -h -c -d sda sdb sdc 5` with red numbers
+(`S_COLORS_SGR="N=31;1:Z=31;22"`). It's a script because the quotes of that
+setting don't survive tmux, the loop and SSH.
+
 ## Plan for the second build (on the 64 GB SSD)
 
 Prepared on 2026-10-08:
@@ -439,3 +502,16 @@ Steps:
   user is created, so `/etc/skel` isn't copied. Fixed on the stick with
   `cp -rn /etc/skel/. ~/`, and in `data/copy-desktop-files.sh` for the next
   image, which now copies missing `/etc/skel` files on the first login.
+- **2026-10-09 12:32:** prepared the third build with `build-and-flash.sh`
+  (see "Building and flashing in one go"), for the `/etc/skel` fix. The
+  Lenovo had two sticks plugged in: a new one (serial `040185052f21…`, factory
+  FAT32) and the old Ubuntu system stick (serial `040144699fdd…`), whose
+  system now runs as a copy on the Lenovo. Both get erased.
+- **2026-10-09 12:36:** started `build-and-flash.sh` in the `buildflash`
+  screen session. Docker image from cache in 11 seconds, system built in 19
+  minutes without `bwrap` errors, image created at 12:57 (13 GB, sha256
+  `7e9c47ee1c366de1750effe0c239d1ea29b5393f9c0aa63b7031d548021f6398`),
+  `Test passed` at 12:58, then both sticks flashing in parallel.
+- **2026-10-09:** the tmux log pane closed when its SSH connection dropped.
+  Rebuilt the monitoring panes with the LAN IP address, `-4`, and a reconnect
+  loop (see "Monitoring panes in tmux").
