@@ -1,0 +1,74 @@
+---
+# Saves and applies the GNOME Dash (the favorite apps in the dock), and puts a
+# Snapmaker Orca launcher on the desktop that starts it with the English locale
+# fix from data/applications.
+#
+# Save the Dash of one computer to files/favorite-apps.json:
+#   ansible-playbook -i inventory.ini gnome-dash.yml --tags save --limit 192.168.178.143
+#
+# Apply the saved Dash and the desktop launcher:
+#   ansible-playbook -i inventory.ini gnome-dash.yml --limit 192.168.178.143
+#
+# The user must be logged in to the desktop, since the settings are changed
+# through the running session.
+
+- name: Save and apply the GNOME Dash
+  hosts: all
+  become: false
+  vars:
+    favorites_file: "{{ playbook_dir }}/files/favorite-apps.json"
+    orca_desktop_file: io.github.Snapmaker.Snapmaker_Orca.desktop
+
+  tasks:
+    # gsettings and gio talk to the running desktop session over D-Bus
+    - name: Change the settings of the running desktop session
+      environment:
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.user_uid }}/bus"
+      block:
+        - name: Read the Dash favorites
+          ansible.builtin.command: gsettings get org.gnome.shell favorite-apps
+          register: current_favorites
+          changed_when: false
+          check_mode: false
+          tags: [always]
+
+        - name: Save the Dash favorites to {{ favorites_file }}
+          delegate_to: localhost
+          run_once: true
+          ansible.builtin.copy:
+            # gsettings prints a GVariant list like ['a.desktop', 'b.desktop']
+            content: "{{ current_favorites.stdout | replace(\"'\", '\"') | from_json | to_nice_json }}\n"
+            dest: "{{ favorites_file }}"
+            mode: "0644"
+          tags: [never, save]
+
+        - name: Apply the saved Dash favorites
+          vars:
+            favorites: "{{ lookup('ansible.builtin.file', favorites_file) | from_json }}"
+            favorites_gvariant: "[{{ favorites | map('regex_replace', '^(.*)$', \"'\\1'\") | join(', ') }}]"
+          ansible.builtin.command: gsettings set org.gnome.shell favorite-apps "{{ favorites_gvariant }}"
+          when: current_favorites.stdout != favorites_gvariant
+
+        # the folder name depends on the language, e.g. "Desktop" or "Schreibtisch"
+        - name: Find the desktop folder
+          ansible.builtin.command: xdg-user-dir DESKTOP
+          register: desktop_dir
+          changed_when: false
+          check_mode: false
+
+        - name: Put the Snapmaker Orca launcher on the desktop
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/../data/applications/{{ orca_desktop_file }}"
+            dest: "{{ desktop_dir.stdout }}/{{ orca_desktop_file }}"
+            mode: "0755"
+
+        # Desktop Icons NG only starts launchers that are marked as trusted
+        - name: Check whether the launcher is trusted
+          ansible.builtin.command: gio info -a metadata::trusted "{{ desktop_dir.stdout }}/{{ orca_desktop_file }}"
+          register: launcher_info
+          changed_when: false
+          check_mode: false
+
+        - name: Allow launching it from the desktop
+          ansible.builtin.command: gio set "{{ desktop_dir.stdout }}/{{ orca_desktop_file }}" metadata::trusted true
+          when: "'metadata::trusted: true' not in launcher_info.stdout"

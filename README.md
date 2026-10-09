@@ -89,6 +89,8 @@ The playbooks in `ansible/` set up an installed Ubuntu or Debian machine, such a
 - `build-dependencies.yml` installs Docker and the tools to build the image.
 - `snapmaker-orca.yml` installs Snapmaker Orca and its fixed app menu entry (see [App menu entries](#app-menu-entries)).
 - `desktop-files.yml` copies `data/desktop` to the user's desktop and writes the account logins from `secrets` (see [Desktop files](#desktop-files)). It doesn't need sudo.
+- `gnome-dash.yml` saves the GNOME Dash (the favorite apps in the dock) of a machine to `ansible/files/favorite-apps.json` with `--tags save`, and applies it otherwise. It also puts a Snapmaker Orca launcher with the locale fix on the desktop and marks it as trusted, so Desktop Icons NG starts it. It changes the running desktop session, so the user must be logged in. The `sticks` group in the inventory is for booted sticks.
+- `oh-my-zsh.yml` installs zsh and [Oh My Zsh](https://ohmyz.sh/) for the user and makes zsh the login shell. Instead of piping the official installer into `sh`, it clones Oh My Zsh and copies its `.zshrc` template, which is what the installer does. An existing `~/.zshrc` is kept.
 - `auto-login.yml` lets the kids use the machine without a password: GDM logs the user in automatically, and the lock screen is off, also after suspend. sudo still asks for the password. It takes effect after the next restart.
 
 `auto-login.yml` doesn't change power settings. With Ubuntu's defaults, the screen turns off after 5 minutes without use. On battery, the machine suspends after 15 minutes, and it also suspends when the lid is closed. On the AG's laptop, automatic suspend while plugged in is turned off in the settings, so it stays awake unless the lid is closed.

@@ -1,0 +1,44 @@
+---
+# Installs zsh and Oh My Zsh for the user and makes zsh the login shell.
+#
+# Does what the official installer (tools/install.sh) does, without running a
+# downloaded script: clones Oh My Zsh to ~/.oh-my-zsh and copies its .zshrc
+# template. An existing ~/.zshrc is kept. Oh My Zsh updates itself afterwards.
+#
+# Usage: ansible-playbook -i inventory.ini oh-my-zsh.yml --ask-become-pass
+# Only one machine: add e.g. --limit druck-lenovo.local
+
+- name: Install Oh My Zsh
+  hosts: build
+  become: false
+
+  tasks:
+    - name: Install zsh and git
+      become: true
+      ansible.builtin.apt:
+        name:
+          - zsh
+          - git
+        state: present
+        update_cache: true
+
+    - name: Clone Oh My Zsh
+      ansible.builtin.git:
+        repo: https://github.com/ohmyzsh/ohmyzsh.git
+        dest: "{{ ansible_env.HOME }}/.oh-my-zsh"
+        depth: 1
+        update: false
+
+    - name: Create ~/.zshrc from the Oh My Zsh template
+      ansible.builtin.copy:
+        src: "{{ ansible_env.HOME }}/.oh-my-zsh/templates/zshrc.zsh-template"
+        dest: "{{ ansible_env.HOME }}/.zshrc"
+        remote_src: true
+        force: false
+        mode: "0644"
+
+    - name: Make zsh the login shell
+      become: true
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        shell: /usr/bin/zsh
