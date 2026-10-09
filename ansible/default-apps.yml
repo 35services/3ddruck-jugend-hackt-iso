@@ -1,0 +1,29 @@
+---
+# Makes Snapmaker Orca the default app for STL and 3MF files, for the user.
+# Otherwise STL files open in FreeCAD. Writes ~/.config/mimeapps.list with
+# xdg-mime, like choosing "Open With" in Files.
+#
+# Usage: ansible-playbook -i inventory.ini default-apps.yml --limit 192.168.178.143
+
+- name: Set the default apps for 3D printing files
+  hosts: all
+  become: false
+  vars:
+    default_app: io.github.Snapmaker.Snapmaker_Orca.desktop
+    file_types:
+      - model/stl
+      - model/3mf
+      - application/vnd.ms-3mfdocument
+
+  tasks:
+    - name: Open STL and 3MF files with Snapmaker Orca
+      ansible.builtin.shell: |
+        set -e
+        for TYPE in {{ file_types | join(' ') }}; do
+          if [ "$(xdg-mime query default "$TYPE")" != "{{ default_app }}" ]; then
+            xdg-mime default "{{ default_app }}" "$TYPE"
+            echo "changed $TYPE"
+          fi
+        done
+      register: default_apps
+      changed_when: "'changed' in default_apps.stdout"

@@ -1,0 +1,41 @@
+---
+# Shrinks Snapmaker Orca's interface, so more of it fits on small screens like
+# the Acer laptop's 1366x768. GNOME can't scale the desktop below 100%, but
+# GDK_DPI_SCALE scales the fonts of GTK apps, and Orca sizes most of its
+# interface by them. Changes the launchers in the app menu and on the desktop,
+# which start Orca with the locale fix from data/applications.
+#
+# Usage: ansible-playbook -i inventory.ini orca-scale.yml --limit 192.168.178.143
+# Other size: add -e orca_ui_scale=0.75
+
+- name: Scale Snapmaker Orca's interface
+  hosts: all
+  become: false
+  vars:
+    orca_ui_scale: "0.65"
+    orca_desktop_file: io.github.Snapmaker.Snapmaker_Orca.desktop
+
+  tasks:
+    # the folder name depends on the language, e.g. "Desktop" or "Schreibtisch"
+    - name: Find the desktop folder
+      ansible.builtin.command: xdg-user-dir DESKTOP
+      register: desktop_dir
+      changed_when: false
+      check_mode: false
+
+    - name: Find the Orca launchers
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ ansible_env.HOME }}/.local/share/applications/{{ orca_desktop_file }}"
+        - "{{ desktop_dir.stdout }}/{{ orca_desktop_file }}"
+      register: launchers
+
+    - name: Start Orca with GDK_DPI_SCALE={{ orca_ui_scale }}
+      ansible.builtin.replace:
+        path: "{{ item.stat.path }}"
+        regexp: '^(Exec=.*--env=LC_ALL=en_US\.UTF-8)(?: --env=GDK_DPI_SCALE=[0-9.]+)?'
+        replace: '\1 --env=GDK_DPI_SCALE={{ orca_ui_scale }}'
+      loop: "{{ launchers.results | selectattr('stat.exists') | list }}"
+      loop_control:
+        label: "{{ item.stat.path }}"
