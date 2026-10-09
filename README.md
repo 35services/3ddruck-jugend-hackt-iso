@@ -62,13 +62,13 @@ Apps that are not on Flathub can be installed from `.flatpak` bundle files by li
 
 `INKSCAPE_EXTENSION_ZIPS` lists `.zip` archives to install into the live user's Inkscape extensions directory (`/etc/skel/.config/inkscape/extensions`). If an archive contains a single top-level folder, its contents are copied rather than the folder itself. This requires `inkscape` in `ADDITIONAL_PACKAGES`.
 
-Since the files are copied from `/etc/skel`, they only reach users created from the image. A stick whose persistence partition already contains the user won't receive them.
+The files reach the user via `/etc/skel` (see [Desktop files](#desktop-files)), on the first login. A stick whose user has already logged in once won't receive them.
 
 To connect to an AxiDraw over USB, the user needs to be in the `dialout` group, which `data/live.conf` already sets.
 
 ### Desktop files
 
-All files in `data/desktop` are copied to the live user's desktop on the first login, by `data/copy-desktop-files.sh` via an autostart entry. It uses the language-specific desktop folder (e.g. `Desktop` or `Schreibtisch`), runs once per user so deleted files are not restored, and also works for users that already exist on a stick. To show the files on the GNOME desktop, the build installs and enables the Desktop Icons NG extension. The 3D-Druck-AG configuration ships a German welcome text, `LIESMICH.txt`, and `axidraw.txt` with links to the AxiDraw documentation, third-party software and the AG's projects.
+All files in `data/desktop` are copied to the live user's desktop on the first login, by `data/copy-desktop-files.sh` via an autostart entry. It uses the language-specific desktop folder (e.g. `Desktop` or `Schreibtisch`), runs once per user so deleted files are not restored, and also works for users that already exist on a stick. It also copies the files from `/etc/skel` that are missing in the home folder, without overwriting any: `data/persistence.conf` keeps `/home/druck` on the persistence partition, so the home folder already exists when live-config creates the user, and live-config then skips `/etc/skel`. To show the files on the GNOME desktop, the build installs and enables the Desktop Icons NG extension. The 3D-Druck-AG configuration ships a German welcome text, `LIESMICH.txt`, and `axidraw.txt` with links to the AxiDraw documentation, third-party software and the AG's projects.
 
 The welcome text refers to `snapmaker-konto.txt` and `makerworld-konto.txt`, which the build writes to the desktop with the logins for the AG's Snapmaker and MakerWorld accounts. Set `SNAPMAKER_USERNAME`, `SNAPMAKER_PASSWORD`, `MAKERWORLD_USERNAME` and `MAKERWORLD_PASSWORD` in `secrets` (a copy of `secrets.sample`) during setup: the build refuses to start without them. Since `secrets` is ignored by git, the login never ends up in the repository. It is stored in plain text on every stick, though. The Ansible playbook `ansible/desktop-files.yml` reads the same file. Changing only a login doesn't change the cache identifier, so delete the cached `.erofs` file to rebuild with a new login.
 
@@ -76,7 +76,7 @@ The welcome text refers to `snapmaker-konto.txt` and `makerworld-konto.txt`, whi
 
 The `.desktop` files in `data/applications` are copied to `/etc/skel/.local/share/applications`, where they replace the app menu entries of installed apps with the same name. `ansible/snapmaker-orca.yml` installs the same entry on a machine.
 
-Currently this fixes Snapmaker Orca: its startup script forces `LC_ALL=C.UTF-8`, which makes its web view fail with "invalid language tag", so no online content loads. The replacement entry starts the app directly with `LC_ALL=en_US.UTF-8`. Like the Inkscape extensions, this only reaches users created from the image.
+Currently this fixes Snapmaker Orca: its startup script forces `LC_ALL=C.UTF-8`, which makes its web view fail with "invalid language tag", so no online content loads. The replacement entry starts the app directly with `LC_ALL=en_US.UTF-8`. Like the Inkscape extensions, it reaches the user via `/etc/skel` on the first login.
 
 ### SSH access
 
