@@ -257,6 +257,58 @@ The image ends up next to the `.erofs` file, as `cache/<checksum>.img`, with its
 checksum in `cache/<checksum>.sum`. Flash it with Etcher or `dd` (see
 "Flash the image to a USB drive" in the README).
 
+## 7. Test the image in a virtual machine
+
+The script boots the image in QEMU, a virtual computer, with `-snapshot`, so
+the image file stays unchanged. The kernel also writes to a serial console
+(`console=ttyS0` in `data/grub.cfg`), which QEMU shows in the terminal with
+`-nographic`, so this works over SSH without a screen. It needs about 8 GB of
+free RAM.
+
+**Automated test:** boots the first menu entry, waits for the login, logs in as
+`druck` with the password `live`, and shuts down again. It prints
+`Test passed` or `Test test failed`:
+
+```sh
+cd /run/media/druck/workspace/jugendhackt-iso
+screen -dmS qemu -L -Logfile ../qemu.log bash -c '
+  docker run --privileged -t --rm \
+    -v "$PWD/config":/config \
+    -v "$PWD/secrets":/secrets \
+    -v "$PWD/../cache":/var/cache/jugendhackt-iso \
+    jugendhackt-iso /jugendhackt-iso.sh test uefi
+  echo "=== qemu exited with code $? at $(date +%T)"
+  exec bash'
+```
+
+Use `test bios` instead of `test uefi` to test on an older, BIOS-only computer.
+The log contains escape codes, so read it like this:
+
+```sh
+tr -d '\r' < ../qemu.log | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | less
+```
+
+**Interactive test session:** the same VM, but you operate it yourself in the
+terminal: choose a GRUB entry with the arrow keys, log in, and try things out
+on the command line. The graphical desktop isn't visible this way, only the
+serial console:
+
+```sh
+cd /run/media/druck/workspace/jugendhackt-iso
+docker run --privileged -it --rm \
+  -v "$PWD/config":/config \
+  -v "$PWD/secrets":/secrets \
+  -v "$PWD/../cache":/var/cache/jugendhackt-iso \
+  jugendhackt-iso /jugendhackt-iso.sh qemu uefi headless
+```
+
+To quit QEMU, press `Ctrl-a` then `x`. Inside `screen`, `Ctrl-a` belongs to
+screen, so press `Ctrl-a` `a` `x` there.
+
+To see the desktop, run `./jugendhackt-iso.sh qemu uefi` without `headless`
+directly on the computer's own screen (not in Docker, not over SSH). It opens
+a QEMU window.
+
 ## Space needed
 
 The first build on the 32 GB stick ran out of space: the unpacked system alone
@@ -335,3 +387,55 @@ Steps:
   `/var/lib/flatpak`, installs openh264 completely. Changed the script to
   that (`flatpak_env`), added `flatpak` to the `Dockerfile` and to
   `build-dependencies.yml`, and rebuilt the Docker image.
+- **2026-10-09 09:36:** instead of the 64 GB SSD, booted the laptop's Ubuntu
+  stick on another computer (`192.168.178.80`, 8 cores, 30 GB RAM) with a
+  477 GB SATA SSD. Since it's the same stick, the SSH host key, Docker setup
+  and the Docker image from last night are all there. The SSD (`/dev/sda1`,
+  ext4, label `512_internal`) wasn't mounted, and `udisksctl mount` over SSH
+  asks for a password it can't prompt for. So mount it by hand, directly
+  without `nodev,nosuid`, at the usual path:
+  `ssh -t druck@192.168.178.80 'sudo mkdir -p /run/media/druck/workspace && sudo mount -o dev,suid /dev/sda1 /run/media/druck/workspace'`
+- **2026-10-09 09:38:** copied the repo, `cp config.sample config` (without
+  IntelliJ IDEA, Collabora Office and LibreSprite), started the `space` and
+  `iso` sessions as in steps 5 and "Watching disk space". 445 GB free.
+- **2026-10-09 09:57:** build done after 19 minutes (over an hour on the
+  laptop), exit code 0. `cache/9a012c26….erofs` is 12 GB. No `bwrap` errors
+  this time, all 8 apps installed (7 from Flathub and the Snapmaker Orca
+  bundle), and `org.freedesktop.Platform.openh264` installed completely, so
+  the `flatpak_env` fix works.
+- **2026-10-09 09:58:** started step 6 (image) in the `image` session. The
+  `losetup` warning "file does not end on a 512-byte sector boundary" is
+  harmless: the script's image size isn't a multiple of 512 bytes, so the last
+  bytes are ignored.
+- **2026-10-09 10:00:** image done, exit code 0, after 2 minutes:
+  `cache/9a012c26….img`, 13 GB, sha256
+  `a63c38e298a5a38f453a23408e37c719aff4f72c1f514501ba5dbc42bc0eccc2`.
+  Flash it with `sudo dd if=<image> of=/dev/sdX bs=4M conv=fsync oflag=direct status=progress`
+  onto the whole stick (`sdX`, not `sdX1`), then check it with
+  `sudo cmp -n $(stat -c %s <image>) <image> /dev/sdX`.
+- **2026-10-09:** flashed the image onto the 32 GB stick with Disks
+  ("Restore Disk Image…"). On a real computer it showed the GRUB menu but
+  didn't start the system.
+- **2026-10-09 10:54:** `test uefi` (step 7) passed: the image boots in QEMU,
+  reaches the login, logs in and shuts down. So the image itself works; the
+  problem is specific to the hardware. `error: can't find command
+  'grub_platform'` in the GRUB output comes from `data/grub.cfg` and only
+  affects the last two menu entries.
+- **2026-10-09 11:10:** the stick from the first flash had no image on it at
+  all, just an MBR with one empty partition, so the GRUB menu seen before was
+  probably the computer's own. Flashed it again with `dd` to the stick's
+  `/dev/disk/by-id/usb-…` name, which contains its serial number, so it can't
+  hit another disk. Took 13½ minutes: the stick accepted the data in 7 minutes
+  and needed another 6½ to write its cache (`conv=fsync` waits for that).
+  Afterwards the stick showed the four partitions.
+- **2026-10-09:** the Acer laptop said "Operating system not found" with the
+  stick in one USB port and booted it from another. Older laptops often only
+  boot from some ports, usually the USB 2 ones.
+- **2026-10-09:** on the booted stick, Snapmaker Orca's fixed menu entry, the
+  AxiDraw extension and even `.bashrc` were missing from `/home/druck`. The
+  live-config log says "The home directory `/home/druck' already exists. Not
+  touching this directory.": since `data/persistence.conf` keeps
+  `/home/druck` on the persistence partition, the folder exists before the
+  user is created, so `/etc/skel` isn't copied. Fixed on the stick with
+  `cp -rn /etc/skel/. ~/`, and in `data/copy-desktop-files.sh` for the next
+  image, which now copies missing `/etc/skel` files on the first login.
