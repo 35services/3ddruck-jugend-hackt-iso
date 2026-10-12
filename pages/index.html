@@ -7,10 +7,11 @@
 <h2>Aktueller Build:</h2>
 <p>Gebaut am $CI_PIPELINE_CREATED_AT</p>
 <p>Commit: <a href="$CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA"><code>$CI_COMMIT_BRANCH/$CI_COMMIT_SHORT_SHA</code></a></p>
+<p>Version: <a href="$CI_PROJECT_URL/-/blob/$CI_COMMIT_SHA/CHANGELOG.md">$ISO_VERSION</a></p>
 <p>Config: <code>$CONFIG_CHECKSUM</code></p>
 <p>
-    <a href="$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$CONFIG_CHECKSUM.img?inline=false">Download Image</a>
-    <a href="$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$CONFIG_CHECKSUM.sum?inline=false">Download SHA256 Summe</a>
+    <a href="$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$ISO_NAME-v$ISO_VERSION.img?inline=false">Download Image</a>
+    <a href="$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$ISO_NAME-v$ISO_VERSION.sum?inline=false">Download SHA256 Summe</a>
 </p>
 <p>
     <a href="$CI_PIPELINE_URL">Build log</a>
