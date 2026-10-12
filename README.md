@@ -90,13 +90,15 @@ The playbooks in `ansible/` set up an installed Ubuntu or Debian machine, such a
 
 - `build-dependencies.yml` installs Docker and the tools to build the image.
 - `snapmaker-orca.yml` installs Snapmaker Orca and its fixed app menu entry (see [App menu entries](#app-menu-entries)).
-- `desktop-files.yml` copies `data/desktop` to the user's desktop and writes the account logins from `secrets` (see [Desktop files](#desktop-files)). It doesn't need sudo.
+- `desktop-files.yml` copies `data/desktop` to the user's desktop and writes the account logins from `secrets` (see [Desktop files](#desktop-files)). It doesn't need sudo, and also works on the Macs in the inventory's `macs` group, where the desktop is `~/Desktop`.
 - `gnome-dash.yml` saves the GNOME Dash (the favorite apps in the dock) of a machine to `ansible/files/favorite-apps.json` with `--tags save`, and applies it otherwise. It also puts a Snapmaker Orca launcher with the locale fix on the desktop and marks it as trusted, so Desktop Icons NG starts it. It changes the running desktop session, so the user must be logged in. The `sticks` group in the inventory is for booted sticks.
 - `default-apps.yml` makes Snapmaker Orca the default app for STL and 3MF files, for the user, instead of FreeCAD. It needs no sudo.
 - `orca-scale.yml` shrinks Snapmaker Orca's interface to 65% (`-e orca_ui_scale=0.75` for another size), so more of it fits on small screens like the Acer laptop's 1366x768. GNOME can't scale below 100%, but `GDK_DPI_SCALE` scales the fonts of GTK apps, and Orca sizes most of its interface by them. It changes the launchers in the app menu and on the desktop, so run it after `gnome-dash.yml`, which copies the unscaled launcher.
 - `tailscale.yml` installs Tailscale from its official package source (`pkgs.tailscale.com`, for the machine's distribution and codename) and starts it on boot. With `TAILSCALE_AUTHKEY` in `secrets`, it also logs the machine in to the tailnet; otherwise log in on the machine with `sudo tailscale up --hostname=<name>`. Give sticks their own name, since they all have the same hostname.
 - `oh-my-zsh.yml` installs zsh and [Oh My Zsh](https://ohmyz.sh/) for the user and makes zsh the login shell. Instead of piping the official installer into `sh`, it clones Oh My Zsh and copies its `.zshrc` template, which is what the installer does. An existing `~/.zshrc` is kept.
 - `auto-login.yml` lets the kids use the machine without a password: GDM logs the user in automatically, and the lock screen is off, also after suspend. sudo still asks for the password. It takes effect after the next restart.
+
+The shared folder "Geteilter Ordner", which syncs 3D printing files between the AG's machines, is its own project: [3ddruck-geteilter-ordner](https://github.com/35services/3ddruck-geteilter-ordner). It uses the same Tailscale names as `tailscale.yml`.
 
 `auto-login.yml` doesn't change power settings. With Ubuntu's defaults, the screen turns off after 5 minutes without use. On battery, the machine suspends after 15 minutes, and it also suspends when the lid is closed. On the AG's laptop, automatic suspend while plugged in is turned off in the settings, so it stays awake unless the lid is closed.
 
