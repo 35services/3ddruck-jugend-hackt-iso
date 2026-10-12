@@ -515,3 +515,10 @@ Steps:
 - **2026-10-09:** the tmux log pane closed when its SSH connection dropped.
   Rebuilt the monitoring panes with the LAN IP address, `-4`, and a reconnect
   loop (see "Monitoring panes in tmux").
+- **2026-10-09 13:13:** both sticks flashed, but the comparison at the end
+  reported `FAILED` for both: while `cmp` was reading them back, both sticks
+  disconnected from USB and reconnected (`usb 2-5: USB disconnect` at
+  13:13:32, `sdc` at 13:14), so the reads failed with `Input/output error`.
+  Writing had already finished without errors. Booted from both sticks
+  afterwards, and both work. If a comparison fails like this, check the
+  kernel log for `USB disconnect` and repeat only the `cmp`, not the build.
