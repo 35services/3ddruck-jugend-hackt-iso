@@ -1,7 +1,9 @@
 # jugendhackt-iso.sh
 
-**Please note:** This project lives on https://git.alpaka.space/aic/jugendhackt-iso.
+**Please note:** The original project lives on https://git.alpaka.space/aic/jugendhackt-iso.
 The mirror on https://gitlab.com/Jugendhackt/jugendhackt-iso is no longer maintained.
+
+**Please note:** This fork is public on github. It uses the jugendhackt scripts to create an image optimized for CAD and 3d printing.
 
 Bootstraps a persistent Debian-based live system on a USB stick.
 
