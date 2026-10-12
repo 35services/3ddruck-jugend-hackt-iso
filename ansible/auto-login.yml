@@ -7,7 +7,7 @@
 # Takes effect after the next restart.
 
 - name: Log in without a password
-  hosts: build
+  hosts: all
   become: true
   vars:
     auto_login_user: "{{ ansible_user }}"

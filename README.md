@@ -144,6 +144,66 @@ docker run --privileged -ti --rm \
 3. Select the USB drive
 4. Flash
 
+### Install a stick's system onto a disk
+
+A booted stick can copy itself onto a computer's internal disk, e.g. next to macOS on a Mac that is too old for current software. The result is a normal Debian sid installation with the stick's apps, settings and the `druck` user (password `live`, change it with `passwd`). It no longer receives new image versions: update it with `sudo apt update && sudo apt full-upgrade` and set it up further with the playbooks in `ansible/`.
+
+1. **Make room.** On a Mac, back it up with Time Machine first, then shrink macOS in macOS, since Linux can't resize APFS: in Disk Utility (View → Show All Devices, select the internal disk, Partition, "+") or with `sudo diskutil apfs resizeContainer disk0s2 350g`, which leaves the rest of the disk free.
+2. **Boot the stick** on the computer (on a Mac, hold Option (⌥) at startup and choose "EFI Boot"), connect to the internet and install rsync: `sudo apt install -y rsync`.
+3. **Create the partition.** In GNOME Disks (*Laufwerke*), select the internal disk, select the free space, click "+" and create an *Ext4* partition named `debian`. Then find the partitions with `lsblk -f`: the new ext4 partition, and the computer's EFI partition, which is `vfat`, around 300 MB and labeled `EFI` on a Mac (the stick's own is labeled `ESP`, don't use it). On the 12" MacBook the internal disk is e.g. `nvme0n1`.
+4. **Copy the system.** Set the two partitions, then copy everything but the live system's virtual and temporary folders. Without `-x`, rsync also copies `/home/druck`, which is mounted from the persistence partition.
+   ```shell
+   ROOT=/dev/nvme0n1p3 # the new ext4 partition
+   ESP=/dev/nvme0n1p1  # the computer's EFI partition
+   sudo mount "$ROOT" /mnt
+   sudo rsync -aAXH --info=progress2 \
+     --exclude={"/dev/*","/proc/*","/sys/*","/run/*","/tmp/*","/mnt/*","/media/*","/lost+found"} / /mnt
+   sudo mkdir -p /mnt/boot/efi
+   sudo mount "$ESP" /mnt/boot/efi
+   sudo tee /mnt/etc/fstab <<EOF
+   UUID=$(sudo blkid -s UUID -o value "$ROOT") / ext4 errors=remount-ro 0 1
+   UUID=$(sudo blkid -s UUID -o value "$ESP") /boot/efi vfat umask=0077 0 1
+   EOF
+   for d in dev proc sys run; do sudo mount --rbind /$d /mnt/$d; sudo mount --make-rslave /mnt/$d; done
+   sudo chroot /mnt
+   ```
+5. **Turn it into an installed system.** In the chroot, remove the live system's packages and the stick's persistence growing, give the machine its own name, machine ID and SSH host keys (all copies of a stick share them), and install GRUB for UEFI. GRUB goes to `EFI/debian` and the fallback path `EFI/BOOT` on the EFI partition, without changing the firmware's boot entries, so on a Mac, macOS stays the default system.
+   - Remove `live-tools` first: it replaces `update-initramfs` with a wrapper that copies the kernel to the live medium, which the chroot sees under `/run/live/medium`, so removing the other live packages would fail.
+   - Removing them makes `sudo` and `rsync` look unneeded to `apt autoremove`, so they are marked as installed manually.
+   - `/etc/sudoers.d/live` lets the live user use sudo without a password; without it, sudo asks for the password (`live`).
+   - The stick's hostname is the ID of the Docker container that built the image, so it's replaced whatever it is.
+   ```shell
+   export LC_ALL=C.UTF-8
+   dpkg --purge live-tools
+   apt-mark manual sudo rsync user-setup
+   apt purge -y live-boot live-boot-doc live-boot-initramfs-tools live-config live-config-doc live-config-systemd
+   rm -f /etc/systemd/system/multi-user.target.wants/grow-persistence.service \
+     /etc/systemd/system/grow-persistence.service /usr/local/bin/grow-persistence.sh
+   rm -f /etc/sudoers.d/live
+   OLD=$(cat /etc/hostname)
+   echo druck-macbook > /etc/hostname # the machine's name
+   sed -i "s/\b$OLD\b/druck-macbook/" /etc/hosts
+   rm -f /etc/machine-id && systemd-machine-id-setup
+   test -x /usr/sbin/sshd && rm -f /etc/ssh/ssh_host_* && ssh-keygen -A
+   # replace the BIOS GRUB with the UEFI one, without touching the firmware's boot entries
+   echo "grub-efi-amd64 grub2/update_nvram boolean false" | debconf-set-selections
+   apt install -y grub-efi-amd64
+   dpkg --purge grub-pc
+   grub-install --target=x86_64-efi --efi-directory=/boot/efi --no-nvram --force-extra-removable
+   update-initramfs -u -k all
+   update-grub
+   exit
+   ```
+6. **Restart** with `sudo umount -R /mnt && sudo reboot`, and remove the stick. On a Mac, hold Option at startup and choose "EFI Boot" for Linux; without it, the Mac starts the system set in System Preferences → Startup Disk.
+7. **Set it up** like the AG's other machines: add it to `ansible/inventory.ini` and run the playbooks, e.g. `tailscale.yml`.
+
+On the 12" MacBook (MacBook8,1), the keyboard and trackpad may not work, sometimes only after some boots: `sudo dmesg` shows `applespi … SPI transfer timed out`. Their SPI controller's transfers through the LPSS DMA controller time out, so the fix is to keep its driver from loading. The SPI controller then falls back to PIO (`no DMA channels available, using PIO`):
+```shell
+echo "blacklist dw_dmac_pci" | sudo tee /etc/modprobe.d/macbook-spi-keyboard.conf
+sudo update-initramfs -u
+```
+Without restarting, `sudo modprobe -r applespi spi_pxa2xx_pci`, `echo 0000:00:15.0 | sudo tee /sys/bus/pci/drivers/dw_dmac_pci/unbind` and `sudo modprobe -a spi_pxa2xx_pci applespi` bring them back, over SSH or with a USB keyboard.
+
 ### Standalone using system libraries
 
 The script will check all dependencies and tell you how to install them. Downloading Flatpak bundles and Inkscape extensions requires `curl` and `unzip`.

@@ -10,7 +10,7 @@
 # Usage: ansible-playbook -i inventory.ini desktop-files.yml
 
 - name: Put the AG files on the desktop
-  hosts: build:macs
+  hosts: all
   become: false
   vars:
     snapmaker_username: >-

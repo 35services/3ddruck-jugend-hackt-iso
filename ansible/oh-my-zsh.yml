@@ -9,7 +9,7 @@
 # Only one machine: add e.g. --limit druck-lenovo.local
 
 - name: Install Oh My Zsh
-  hosts: build
+  hosts: all
   become: false
 
   tasks:
