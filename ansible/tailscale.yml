@@ -1,0 +1,102 @@
+---
+# Installs Tailscale from its official package source and logs the machine in
+# with an auth key, so it joins the tailnet without a browser.
+#
+# Create the key in the Tailscale admin console (Settings > Keys > Generate auth
+# key), make it reusable for several machines, and set it as TAILSCALE_AUTHKEY in
+# ../secrets. Without a key, the playbook only installs Tailscale; then log in on
+# the machine with: sudo tailscale up
+#
+# Usage: ansible-playbook -i inventory.ini tailscale.yml --ask-become-pass --limit druck-lenovo.local
+#
+# Optional, per host or with -e:
+#   tailscale_hostname  the machine's name in the tailnet, e.g. for sticks, which
+#                       all have the same hostname
+#   tailscale_tags      e.g. tag:geteilter-ordner. The auth key must be allowed to
+#                       set it (tagOwners in the tailnet's access rules)
+
+- name: Install Tailscale
+  hosts: all
+  become: true
+  vars:
+    tailscale_auth_key: >-
+      {{ lookup('ansible.builtin.ini', 'TAILSCALE_AUTHKEY', file=playbook_dir ~ '/../secrets',
+                type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+    tailscale_distribution: "{{ ansible_facts.distribution | lower }}"
+    tailscale_keyring: /usr/share/keyrings/tailscale-archive-keyring.gpg
+
+  tasks:
+    # Debian testing and unstable report their codename (e.g. forky) only here
+    - name: Read the distribution's codename
+      ansible.builtin.command: sed -n 's/^VERSION_CODENAME=//p' /etc/os-release
+      register: codename
+      changed_when: false
+      check_mode: false
+
+    - name: Add Tailscale's signing key
+      ansible.builtin.get_url:
+        url: https://pkgs.tailscale.com/stable/{{ tailscale_distribution }}/{{ codename.stdout }}.noarmor.gpg
+        dest: "{{ tailscale_keyring }}"
+        mode: "0644"
+
+    - name: Add Tailscale's package source
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/tailscale.list
+        content: |
+          # Tailscale packages for {{ tailscale_distribution }} {{ codename.stdout }}
+          deb [signed-by={{ tailscale_keyring }}] https://pkgs.tailscale.com/stable/{{ tailscale_distribution }} {{ codename.stdout }} main
+        mode: "0644"
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+        update_cache: true
+
+    - name: Start Tailscale on boot
+      ansible.builtin.service:
+        name: tailscaled
+        state: started
+        enabled: true
+
+    - name: Check whether the machine is logged in
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status
+      # tailscaled needs a moment after its first start
+      until: tailscale_status.stdout | length > 0
+      retries: 10
+      delay: 2
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Log in to the tailnet
+      vars:
+        logged_in: "{{ (tailscale_status.stdout | from_json).BackendState == 'Running' }}"
+        options: >-
+          --auth-key={{ tailscale_auth_key }}
+          {{ '--hostname=' ~ tailscale_hostname if tailscale_hostname is defined else '' }}
+          {{ '--advertise-tags=' ~ tailscale_tags if tailscale_tags is defined else '' }}
+      ansible.builtin.command: tailscale up {{ options }}
+      when:
+        - not logged_in
+        - tailscale_auth_key | length > 0
+      no_log: true
+
+    - name: Explain how to log in without an auth key
+      ansible.builtin.debug:
+        msg: No TAILSCALE_AUTHKEY in secrets. Log in on the machine with sudo tailscale up
+      when:
+        - (tailscale_status.stdout | from_json).BackendState != 'Running'
+        - tailscale_auth_key | length == 0
+
+    - name: Read the machine's Tailscale address
+      ansible.builtin.command: tailscale ip -4
+      register: tailscale_ip
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Show the machine's Tailscale address
+      ansible.builtin.debug:
+        msg: "{{ tailscale_ip.stdout | default('not logged in yet', true) }}"
