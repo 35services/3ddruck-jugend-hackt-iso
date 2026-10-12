@@ -4,10 +4,13 @@
 # AG's Snapmaker and MakerWorld accounts. The logins are read from ../secrets (ignored by git, see secrets.sample),
 # the same file jugendhackt-iso.sh uses.
 #
+# Works on the Ubuntu laptops ([build]) and on Macs ([macs]). A Mac needs Remote Login
+# (System Settings > General > Sharing) and python3 (xcode-select --install).
+#
 # Usage: ansible-playbook -i inventory.ini desktop-files.yml
 
 - name: Put the AG files on the desktop
-  hosts: build
+  hosts: build:macs
   become: false
   vars:
     snapmaker_username: >-
@@ -40,28 +43,36 @@
         fail_msg: Please copy secrets.sample to secrets and set MAKERWORLD_USERNAME and MAKERWORLD_PASSWORD
       no_log: true
 
-    # the folder name depends on the language, e.g. "Desktop" or "Schreibtisch"
+    # on Linux the folder name depends on the language, e.g. "Desktop" or "Schreibtisch"
     - name: Find the desktop folder
       ansible.builtin.command: xdg-user-dir DESKTOP
-      register: desktop_dir
+      register: xdg_desktop
       changed_when: false
       check_mode: false
+      when: ansible_facts.system != 'Darwin'
+
+    # macOS has no xdg-user-dir, its folder is always ~/Desktop ("Schreibtisch" is only the display name)
+    - name: Remember the desktop folder
+      ansible.builtin.set_fact:
+        desktop_dir: >-
+          {{ ansible_facts.user_dir ~ '/Desktop' if ansible_facts.system == 'Darwin' else xdg_desktop.stdout }}
 
     - name: Make sure the desktop folder exists
       ansible.builtin.file:
-        path: "{{ desktop_dir.stdout }}"
+        path: "{{ desktop_dir }}"
         state: directory
-        mode: "0755"
+        # macOS keeps ~/Desktop private (0700), don't open it up
+        mode: "{{ omit if ansible_facts.system == 'Darwin' else '0755' }}"
 
     - name: Copy the files from data/desktop
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../data/desktop/"
-        dest: "{{ desktop_dir.stdout }}/"
+        dest: "{{ desktop_dir }}/"
         mode: "0644"
 
     - name: Write the Snapmaker login
       ansible.builtin.copy:
-        dest: "{{ desktop_dir.stdout }}/snapmaker-konto.txt"
+        dest: "{{ desktop_dir }}/snapmaker-konto.txt"
         content: |
           Snapmaker-Konto der 3D-Druck-AG
           ===============================
@@ -73,7 +84,7 @@
 
     - name: Write the MakerWorld login
       ansible.builtin.copy:
-        dest: "{{ desktop_dir.stdout }}/makerworld-konto.txt"
+        dest: "{{ desktop_dir }}/makerworld-konto.txt"
         content: |
           MakerWorld-Konto der 3D-Druck-AG
           ================================
