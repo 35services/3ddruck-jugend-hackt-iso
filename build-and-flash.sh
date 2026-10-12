@@ -7,7 +7,7 @@
 #
 # Everything on the sticks is erased. The build uses ../cache and ../tmp, like
 # ISO_LOG.md, and replaces an existing image, since the cache name only depends
-# on config, not on data/ or the script.
+# on the version in CHANGELOG.md, not on config, data/ or the script.
 
 set -euo pipefail
 

@@ -41,3 +41,4 @@ Gut zu wissen
 -------------
 - Dateien speicherst du am besten in deinem persönlichen Ordner.
 - Die AG-Leitung kann sich zur Wartung per SSH mit diesem Computer verbinden.
+- Welche Version dieser Stick hat, steht in version.txt.

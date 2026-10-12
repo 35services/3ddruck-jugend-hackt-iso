@@ -174,9 +174,9 @@ The jugendhackt-iso script passes two general stages :
 
 The first stage uses `deboostrap` in order to boostrap a Debian base system. Next, APT packages, flatpaks, Flatpak bundles and Inkscape extensions are installed according to the configuration and locale settings are applied.
 
-Once the bootstrap is done, the compressed base system is stored in `/var/cache/jugendhackt-iso` to reuse it for the next use of the same configuration.
+Once the bootstrap is done, the compressed base system is stored in `/var/cache/jugendhackt-iso` to reuse it for the next build of the same version. The version is the topmost released one in `CHANGELOG.md`, which `.iso-version` must match, and names the files, e.g. `jugendhackt-iso-v3.erofs` and `jugendhackt-iso-v3.img`. The build also puts a `version.txt` with the version, the start of the build and a link to the changelog on the desktop.
 
-In case the script finds a cache present for the used config file, the entire step is skipped.
+In case the script finds a cache present for the current version, it stops; delete the `.erofs` file to build again.
 
 The second stage populates the available system to a disk image file. It is therefore completely formatted with four partitions being created : a BIOS grub partition for legacy boot, an EFI system partition for UEFI boot, a root partition containing the bootloader, the kernel and the compressed system as well as an empty partition used for persistance.
 

@@ -162,8 +162,9 @@ tail -f /run/media/druck/workspace/build.log   # Ctrl-c to stop watching
 df -h /run/media/druck/workspace               # space used so far
 ```
 
-When it's done, the cache contains `<checksum>.erofs`, the compressed system.
-The checksum is that of `config`, so a changed `config` means a new build.
+When it's done, the cache contains `jugendhackt-iso-v<version>.erofs`, the
+compressed system. The version is the latest one in `CHANGELOG.md` (see
+`CLAUDE.md`), so a changed image needs a new version or a deleted `.erofs`.
 
 ## Watching disk space
 
@@ -203,8 +204,8 @@ work happens in a plain folder on the stick.
    `/var/tmp` (= `tmp/` on the stick). With `chroot`, which starts programs so
    that they see that folder as `/`, the script runs `apt install` inside it,
    installs the Flatpaks and copies the configuration. `mkfs.erofs` then
-   compresses the folder into one read-only file, `cache/<checksum>.erofs`.
-2. **`image`:** creates `cache/<checksum>.img` with four partitions: GRUB for
+   compresses the folder into one read-only file, `cache/jugendhackt-iso-v<version>.erofs`.
+2. **`image`:** creates `cache/jugendhackt-iso-v<version>.img` with four partitions: GRUB for
    BIOS and UEFI, `BOOT` with the `.erofs` file, kernel and initrd, and the
    persistence partition `Jugend-hackt-USB`.
 3. **On a stick:** live-boot mounts the `.erofs` file as `/` and lays the
@@ -232,7 +233,7 @@ Which stage a file belongs to decides whether a change needs a new build:
   onto the stick's partitions. Rebuild the Docker image and run `image` again.
 - **`build`:** everything that ends up in the system, e.g. packages in
   `config`, `data/desktop`, `data/applications`. The `.erofs` file only
-  depends on the checksum of `config`, so delete it to force a new build.
+  depends on the version in `CHANGELOG.md`, so delete it to force a new build.
 
 ## 6. Create the USB image
 
@@ -253,8 +254,8 @@ screen -dmS image -L -Logfile ../image.log bash -c '
   exec bash'
 ```
 
-The image ends up next to the `.erofs` file, as `cache/<checksum>.img`, with its
-checksum in `cache/<checksum>.sum`. Flash it with Etcher or `dd` (see
+The image ends up next to the `.erofs` file, as `cache/jugendhackt-iso-v<version>.img`, with its
+checksum in `cache/jugendhackt-iso-v<version>.sum`. Flash it with Etcher or `dd` (see
 "Flash the image to a USB drive" in the README).
 
 ## 7. Test the image in a virtual machine
@@ -317,8 +318,8 @@ took 25 GB before the Flatpaks were done. Roughly, the stick needs:
 | What | Size |
 |---|---|
 | unpacked system in `tmp/` (deleted after the `.erofs` is written) | 22–25 GB |
-| `cache/<checksum>.erofs` | about half of that |
-| `cache/<checksum>.img` (stage 6) | size of the `.erofs` + 1 GB |
+| `cache/jugendhackt-iso-v<version>.erofs` | about half of that |
+| `cache/jugendhackt-iso-v<version>.img` (stage 6) | size of the `.erofs` + 1 GB |
 
 So use a disk with 64 GB or more.
 

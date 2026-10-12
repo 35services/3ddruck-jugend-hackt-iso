@@ -1,2 +1,2 @@
-/latest.img $CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$CONFIG_CHECKSUM.img?inline=false 302
-/latest.sum $CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/$CONFIG_CHECKSUM.sum?inline=false 302
+/latest.img $CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/jugendhackt-iso-v$ISO_VERSION.img?inline=false 302
+/latest.sum $CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/cache/jugendhackt-iso-v$ISO_VERSION.sum?inline=false 302
