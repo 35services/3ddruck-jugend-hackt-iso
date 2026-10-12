@@ -8,6 +8,6 @@ RUN usermod -aG kvm root
 
 COPY data /data
 COPY jugendhackt-iso.sh /jugendhackt-iso.sh
-COPY CHANGELOG.md .iso-version /
+COPY CHANGELOG.md .iso-name .iso-version /
 
 CMD ["/jugendhackt-iso.sh"]

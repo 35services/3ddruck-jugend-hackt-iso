@@ -52,8 +52,8 @@ function load_config () {
   fi
 
   # the version is the topmost released one in CHANGELOG.md, see CLAUDE.md
-  if [[ ! -f CHANGELOG.md || ! -f .iso-version ]]; then
-    echo "CHANGELOG.md and .iso-version are missing. In Docker, rebuild the image."
+  if [[ ! -f CHANGELOG.md || ! -f .iso-name || ! -f .iso-version ]]; then
+    echo "CHANGELOG.md, .iso-name or .iso-version is missing. In Docker, rebuild the image."
     exit 1
   fi
   ISO_VERSION="$(sed -n 's/^## \[\([0-9][0-9]*\)\].*/\1/p' CHANGELOG.md | head -n 1)"
@@ -67,7 +67,13 @@ function load_config () {
   fi
   CHANGELOG_URL="https://github.com/35services/3ddruck-jugend-hackt-iso/blob/3d-druck-ag/CHANGELOG.md"
 
-  IDENTIFIER="jugendhackt-iso-v${ISO_VERSION}"
+  ISO_NAME="$(cat .iso-name)"
+  if [[ ! "$ISO_NAME" =~ ^[a-z0-9-]+$ ]]; then
+    echo ".iso-name must only contain lowercase letters, digits and dashes, as it names the image file"
+    exit 1
+  fi
+
+  IDENTIFIER="${ISO_NAME}-v${ISO_VERSION}"
   CACHE_PATH="${CACHE_PATH-/var/cache/jugendhackt-iso}"
   EROFS_FILE="${CACHE_PATH}/${IDENTIFIER}.erofs"
   IMAGE_FILE="${CACHE_PATH}/${IDENTIFIER}.img"
@@ -249,8 +255,8 @@ function build_erofs() {
       "$SNAPMAKER_USERNAME" "$SNAPMAKER_PASSWORD" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/snapmaker-konto.txt"
     printf 'MakerWorld-Konto der 3D-Druck-AG\n================================\n\nBenutzer: %s\nPasswort: %s\n' \
       "$MAKERWORLD_USERNAME" "$MAKERWORLD_PASSWORD" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/makerworld-konto.txt"
-    printf 'Version dieses USB-Sticks\n=========================\n\nVersion: %s\nBau gestartet: %s\n\nWas sich in den Versionen geändert hat, steht im Changelog:\n%s\n' \
-      "$ISO_VERSION" "$BUILD_STARTED" "$CHANGELOG_URL" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/version.txt"
+    printf 'Version dieses USB-Sticks\n=========================\n\nName: %s\nVersion: %s\nBau gestartet: %s\n\nWas sich in den Versionen geändert hat, steht im Changelog:\n%s\n' \
+      "$ISO_NAME" "$ISO_VERSION" "$BUILD_STARTED" "$CHANGELOG_URL" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/version.txt"
     cp data/copy-desktop-files.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
     chmod 755 "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
     cp data/copy-desktop-files.desktop "$DEBOOTSTRAP_ROOT/etc/xdg/autostart/copy-desktop-files.desktop"
@@ -598,7 +604,7 @@ case "${STAGE}" in
       exit 1
     fi
     BUILD_STARTED="$(TZ=Europe/Berlin date '+%d.%m.%Y %H:%M %Z')"
-    echo "Building version ${ISO_VERSION}, started ${BUILD_STARTED}"
+    echo "Building ${ISO_NAME} version ${ISO_VERSION}, started ${BUILD_STARTED}"
     DEBOOTSTRAP_ROOT="$(mktemp -p /var/tmp -d)"
 
     build_erofs "$DEBOOTSTRAP_ROOT"

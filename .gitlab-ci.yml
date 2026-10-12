@@ -113,6 +113,7 @@ stages:
     - |
       export BUILD_JOB_ID="$(curl --header "JOB-TOKEN: $CI_JOB_TOKEN" $CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs | jq '.[] | select(.name | contains("build:iso")) | .id')"
     - export CONFIG_CHECKSUM="$(sha256sum config | awk '{ print $1 }')"
+    - export ISO_NAME="$(cat .iso-name)"
     - export ISO_VERSION="$(cat .iso-version)"
     - eval "echo \"$(cat pages/index.html)\"" > pages/index.html
     - eval "echo \"$(cat pages/_redirects)\"" > pages/_redirects

@@ -5,9 +5,10 @@ this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions are whole numbers, one for every image that is flashed onto sticks.
-The topmost released version is the version of the next build: it names the
-image (`jugendhackt-iso-v<version>.img`) and is shown in `version.txt` on the
-desktop, and `.iso-version` must contain the same number.
+The topmost released version is the version of the next build: together with
+the name in `.iso-name` it names the image
+(`jugendhackt-3d-druck-iso-v<version>.img`) and is shown in `version.txt` on
+the desktop, and `.iso-version` must contain the same number.
 
 ## [Unreleased]
 
@@ -15,14 +16,17 @@ desktop, and `.iso-version` must contain the same number.
 
 ### Added
 
-- `version.txt` on the desktop with the image's version, when its build
-  started and a link to this changelog. `LIESMICH.txt` points to it.
+- `version.txt` on the desktop with the image's name and version, when its
+  build started and a link to this changelog. `LIESMICH.txt` points to it.
 - This changelog and `.iso-version`, from which the build takes the version.
+- `.iso-name` with the image's name, `jugendhackt-3d-druck-iso`, the 3D
+  printing variant of the Jugend hackt ISO.
 
 ### Changed
 
-- The image, the `.erofs` file and the checksum are named after the version,
-  e.g. `jugendhackt-iso-v3.img`, instead of after the checksum of `config`.
+- The image, the `.erofs` file and the checksum are named after `.iso-name`
+  and the version, e.g. `jugendhackt-3d-druck-iso-v3.img`, instead of after
+  the checksum of `config`.
 
 ## [2] - 2026-10-09
 

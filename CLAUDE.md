@@ -19,5 +19,8 @@ and flashed in practice).
 - `.iso-version` contains the current version, the topmost released version
   in `CHANGELOG.md`, and nothing else. Update both together: the build takes
   the version from the changelog and stops if `.iso-version` differs.
-- The version names the build's files (`cache/jugendhackt-iso-v<version>.img`,
-  `.erofs`, `.sum`) and is shown in `version.txt` on the sticks' desktop.
+- `.iso-name` contains the image's name, `jugendhackt-3d-druck-iso` (the 3D
+  printing variant of the Jugend hackt ISO), and nothing else. Together with
+  the version it names the build's files
+  (`cache/jugendhackt-3d-druck-iso-v<version>.img`, `.erofs`, `.sum`), and
+  both are shown in `version.txt` on the sticks' desktop.
