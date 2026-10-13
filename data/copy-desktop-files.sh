@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# puts a link "Infos" to /usr/share/jugendhackt-iso/desktop on the user's desktop on the
-# first login. The desktop folder name depends on the language, e.g. "Desktop" or
-# "Schreibtisch". Runs only once, so a deleted link is not restored.
+# puts a link "Infos" to /usr/share/jugendhackt-iso/desktop on the user's desktop, on every
+# login, so a deleted link comes back. The desktop folder name depends on the language,
+# e.g. "Desktop" or "Schreibtisch".
 #
 # The files belong to root and are in a folder only root can change, so they can't be
 # changed by accident: a text editor can't save them. A read-only file on the desktop
@@ -25,16 +25,14 @@ fi
 DESKTOP_DIR="$(xdg-user-dir DESKTOP)"
 mkdir -p "$DESKTOP_DIR"
 
-OLD_COPIES=false
 for FILE in "$SHARED_DIR"/*; do
   TARGET="$DESKTOP_DIR/$(basename "$FILE")"
   if [ -e "$TARGET" ] || [ -L "$TARGET" ]; then
     rm -f "$TARGET"
-    OLD_COPIES=true
   fi
 done
 
-if { [ ! -e "$MARKER" ] || [ "$OLD_COPIES" = true ]; } && [ ! -L "$DESKTOP_DIR/Infos" ]; then
+if [ ! -L "$DESKTOP_DIR/Infos" ]; then
   ln -s "$SHARED_DIR" "$DESKTOP_DIR/Infos"
 fi
 
