@@ -118,7 +118,7 @@ Without a password at login, Ubuntu's login keyring stays locked, so apps that s
 - `gnome-dash.yml` and `auto-login.yml` are for GNOME and GDM. MX uses Xfce and LightDM, and its live system logs in automatically.
 - The live system runs from RAM: its 6 GB overlay held Orca, Inkscape, OpenSCAD and FreeCAD, but not PrusaSlicer and Cura, and all changes are lost on restart.
 
-**Next steps:** install MX into the MacBook's free disk space (custom partitioning, using the existing EFI partition without formatting it), set it up again, and compare it with the stick on the AG's older machines.
+**Next steps:** MX is installed next to Debian on the MacBook and set up with the playbooks (details and pitfalls in `mx-learnings.md`). `MX_ISO.md` plans an image built from MX's ISO, side by side with the Debian one, to compare on the AG's older machines.
 
 ### Build using Docker
 
