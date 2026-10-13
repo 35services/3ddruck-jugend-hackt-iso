@@ -24,3 +24,19 @@ and flashed in practice).
   the version it names the build's files
   (`cache/jugendhackt-3d-druck-iso-v<version>.img`, `.erofs`, `.sum`), and
   both are shown in `version.txt` on the sticks' desktop.
+
+## Git worktrees
+
+A new worktree (e.g. under `.claude/worktrees/`) lacks the files git ignores,
+which the main checkout has. When creating one, or suggesting to switch to one,
+link them from the main checkout, e.g. from the worktree's root
+`ln -s ../../../secrets secrets`:
+
+- `secrets`: the logins `jugendhackt-iso.sh` and the Ansible playbooks read
+  (e.g. `desktop-files.yml`, `tailscale.yml`). Without it, they fail or skip
+  logging in.
+- `config`: the build's settings (see `config.sample`).
+- `cache`: the build's cache and images, several GB, so link it rather than
+  copy it.
+
+Link only what exists in the main checkout, and mention it to the user.
