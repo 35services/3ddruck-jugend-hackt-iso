@@ -105,6 +105,21 @@ The shared folder "Geteilter Ordner", which syncs 3D printing files between the 
 
 Without a password at login, Ubuntu's login keyring stays locked, so apps that store passwords, such as a browser, may ask for it. To prevent this, give the keyring an empty password once on the machine: in *Passwörter und Verschlüsselung* (Seahorse), right-click *Anmeldung*, choose *Passwort ändern* and leave the new password empty. Saved passwords are then stored unencrypted.
 
+### Experiment: MX Linux
+
+[MX Linux](https://mxlinux.org/) (Debian stable with Xfce, from the antiX project) promises to run better on older machines than Debian with GNOME. If it holds up, a future version of the whole image may be based on it. So far it was tried on the 12" MacBook, as a live system, in October 2026 with MX 25.3 Xfce (Debian 13), and it seems usable.
+
+**Starting it.** `ansible/mx-linux-iso.yml` puts the ISO on the MacBook's Debian and adds "MX Linux Live (ISO)" to its GRUB menu, with the keyboard fix on the kernel command line. If the GRUB menu can't be used, start it once from Debian with `sudo grub-reboot "MX Linux Live (ISO)"` and restart. The live user is `demo` with the password `demo` (root: `root`). The live system has no SSH server: install and open it in a terminal on the machine with `sudo apt install -y openssh-server`, `sudo service ssh start` and `sudo ufw allow 22/tcp`, then `ssh-copy-id demo@mx1.local`. The inventory's `[mx]` group contains it.
+
+**What works without changes:** `snapmaker-orca.yml` (Snapmaker Orca with the locale fix, its size is fine on the MacBook's Retina screen without `orca-scale.yml`), `desktop-files.yml`, `default-apps.yml` and `oh-my-zsh.yml`. Inkscape with the AxiDraw extension, OpenSCAD and FreeCAD 1.0.2 install from apt. The MacBook's keyboard needs the same fix as Debian: `modprobe.blacklist=dw_dmac_pci` (in the GRUB entry) and the sleep hook from [Install a stick's system onto a disk](#install-a-sticks-system-onto-a-disk), which MX runs from `/usr/lib/elogind/system-sleep/`.
+
+**What differs:**
+- MX starts with sysvinit instead of systemd. Tailscale's package doesn't start `tailscaled` there: start it with `sudo tailscaled --state=/var/lib/tailscale/tailscaled.state &`, then `sudo tailscale up --hostname=<name>`. The Geteilter Ordner's client runs Syncthing as a systemd user service; on MX it was started from an Xfce autostart entry instead, and synced with the hub over Tailscale.
+- `gnome-dash.yml` and `auto-login.yml` are for GNOME and GDM. MX uses Xfce and LightDM, and its live system logs in automatically.
+- The live system runs from RAM: its 6 GB overlay held Orca, Inkscape, OpenSCAD and FreeCAD, but not PrusaSlicer and Cura, and all changes are lost on restart.
+
+**Next steps:** install MX into the MacBook's free disk space (custom partitioning, using the existing EFI partition without formatting it), set it up again, and compare it with the stick on the AG's older machines.
+
 ### Build using Docker
 
 **Note:** The prebuilt image `registry.git.alpaka.space/aic/jugendhackt-iso:main` may not contain `curl` and `unzip` yet, which are needed for Flatpak bundles and Inkscape extensions. In that case, build the image locally with `docker build -t jugendhackt-iso .` and use `jugendhackt-iso` instead of the registry image in the commands below.
