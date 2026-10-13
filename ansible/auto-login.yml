@@ -11,11 +11,13 @@
   become: true
   vars:
     auto_login_user: "{{ ansible_user }}"
+    # Debian calls Ubuntu's custom.conf daemon.conf
+    gdm_config: "{{ '/etc/gdm3/daemon.conf' if ansible_facts.distribution == 'Debian' else '/etc/gdm3/custom.conf' }}"
 
   tasks:
     - name: Turn on automatic login in GDM
       ansible.builtin.lineinfile:
-        path: /etc/gdm3/custom.conf
+        path: "{{ gdm_config }}"
         regexp: "^#?\\s*{{ item.key }}\\s*="
         line: "{{ item.key }} = {{ item.value }}"
         insertafter: '^\[daemon\]'
