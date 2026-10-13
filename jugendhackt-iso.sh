@@ -257,7 +257,10 @@ function build_erofs() {
       "$MAKERWORLD_USERNAME" "$MAKERWORLD_PASSWORD" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/makerworld-konto.txt"
     printf 'Version dieses USB-Sticks\n=========================\n\nName: %s\nVersion: %s\nBau gestartet: %s\n\nWas sich in den Versionen geändert hat, steht im Changelog:\n%s\n' \
       "$ISO_NAME" "$ISO_VERSION" "$BUILD_STARTED" "$CHANGELOG_URL" > "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop/version.txt"
-    # read-only, so they aren't changed by accident; cp in copy-desktop-files.sh keeps the mode
+    # read-only and owned by root; copy-desktop-files.sh links this folder on the desktop as
+    # "Infos", so a text editor can't save them
+    chown -R 0:0 "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso"
+    chmod 755 "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop"
     find "$DEBOOTSTRAP_ROOT/usr/share/jugendhackt-iso/desktop" -type f -name '*.txt' -exec chmod 444 {} +
     cp data/copy-desktop-files.sh "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"
     chmod 755 "$DEBOOTSTRAP_ROOT/usr/local/bin/copy-desktop-files.sh"

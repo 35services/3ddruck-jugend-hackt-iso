@@ -4,8 +4,16 @@
 # AG's Snapmaker and MakerWorld accounts. The logins are read from ../secrets (ignored by git, see secrets.sample),
 # the same file jugendhackt-iso.sh uses.
 #
-# Works on the Ubuntu laptops ([build]) and on Macs ([macs]). A Mac needs Remote Login
-# (System Settings > General > Sharing) and python3 (xcode-select --install).
+# On Linux, the files can't be changed by accident: like in the image, they belong to root
+# and are kept in /usr/share/jugendhackt-iso/desktop, and the desktop has a link "Infos" to
+# that folder. A read-only file on the desktop isn't enough, since a text editor can replace
+# it with a new file, which the desktop folder allows. Copies on the desktop from older
+# versions of this playbook are removed. (On a stick, the folder goes back to the image's
+# files on reboot.) On a Mac, the files are copied to the desktop, read-only.
+#
+# Works on the Ubuntu laptops ([build]), on sticks and installed machines, and on Macs
+# ([macs]). On Linux it needs sudo. A Mac needs Remote Login (System Settings > General >
+# Sharing) and python3 (xcode-select --install).
 #
 # Usage: ansible-playbook -i inventory.ini desktop-files.yml
 
@@ -25,6 +33,25 @@
     makerworld_password: >-
       {{ lookup('ansible.builtin.ini', 'MAKERWORLD_PASSWORD', file=playbook_dir ~ '/../secrets',
                 type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+    shared_dir: /usr/share/jugendhackt-iso/desktop
+    desktop_files: >-
+      {{ query('ansible.builtin.fileglob', playbook_dir ~ '/../data/desktop/*') | map('basename') | list
+         + ['snapmaker-konto.txt', 'makerworld-konto.txt', 'version.txt'] }}
+    logins:
+      - file: snapmaker-konto.txt
+        content: |
+          Snapmaker-Konto der 3D-Druck-AG
+          ===============================
+
+          Benutzer: {{ snapmaker_username }}
+          Passwort: {{ snapmaker_password }}
+      - file: makerworld-konto.txt
+        content: |
+          MakerWorld-Konto der 3D-Druck-AG
+          ================================
+
+          Benutzer: {{ makerworld_username }}
+          Passwort: {{ makerworld_password }}
 
   tasks:
     - name: Make sure the Snapmaker login is set
@@ -64,33 +91,64 @@
         # macOS keeps ~/Desktop private (0700), don't open it up
         mode: "{{ omit if ansible_facts.system == 'Darwin' else '0755' }}"
 
-    - name: Copy the files from data/desktop
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../data/desktop/"
-        dest: "{{ desktop_dir }}/"
-        # read-only, like in the image, so the texts aren't changed by accident
-        mode: "0444"
+    - name: Put the files on the desktop (Linux)
+      when: ansible_facts.system != 'Darwin'
+      block:
+        - name: Make sure the folder for the files exists
+          ansible.builtin.file:
+            path: "{{ shared_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+          become: true
 
-    - name: Write the Snapmaker login
-      ansible.builtin.copy:
-        dest: "{{ desktop_dir }}/snapmaker-konto.txt"
-        content: |
-          Snapmaker-Konto der 3D-Druck-AG
-          ===============================
+        - name: Copy the files from data/desktop
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/../data/desktop/"
+            dest: "{{ shared_dir }}/"
+            owner: root
+            group: root
+            mode: "0444"
+          become: true
 
-          Benutzer: {{ snapmaker_username }}
-          Passwort: {{ snapmaker_password }}
-        mode: "0400"
-      no_log: true
+        # readable by every user of the machine, like in the image
+        - name: Write the logins
+          ansible.builtin.copy:
+            dest: "{{ shared_dir }}/{{ item.file }}"
+            content: "{{ item.content }}"
+            owner: root
+            group: root
+            mode: "0444"
+          loop: "{{ logins }}"
+          become: true
+          no_log: true
 
-    - name: Write the MakerWorld login
-      ansible.builtin.copy:
-        dest: "{{ desktop_dir }}/makerworld-konto.txt"
-        content: |
-          MakerWorld-Konto der 3D-Druck-AG
-          ================================
+        - name: Remove the copies older versions put on the desktop
+          ansible.builtin.file:
+            path: "{{ desktop_dir }}/{{ item }}"
+            state: absent
+          loop: "{{ desktop_files }}"
 
-          Benutzer: {{ makerworld_username }}
-          Passwort: {{ makerworld_password }}
-        mode: "0400"
-      no_log: true
+        - name: Link the folder on the desktop
+          ansible.builtin.file:
+            src: "{{ shared_dir }}"
+            dest: "{{ desktop_dir }}/Infos"
+            state: link
+
+    - name: Put the files on the desktop (macOS)
+      when: ansible_facts.system == 'Darwin'
+      block:
+        - name: Copy the files from data/desktop
+          ansible.builtin.copy:
+            src: "{{ playbook_dir }}/../data/desktop/"
+            dest: "{{ desktop_dir }}/"
+            mode: "0444"
+
+        - name: Write the logins
+          ansible.builtin.copy:
+            dest: "{{ desktop_dir }}/{{ item.file }}"
+            content: "{{ item.content }}"
+            mode: "0400"
+          loop: "{{ logins }}"
+          no_log: true

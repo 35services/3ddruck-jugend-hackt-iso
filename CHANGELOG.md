@@ -14,9 +14,14 @@ the desktop, and `.iso-version` must contain the same number.
 
 ### Changed
 
-- The `.txt` files on the desktop (`LIESMICH.txt`, `axidraw.txt`,
-  `version.txt` and the account logins) are read-only, so they aren't changed
-  by accident. `ansible/desktop-files.yml` writes them read-only too.
+- The texts (`LIESMICH.txt`, `axidraw.txt`, `version.txt` and the account
+  logins) are in a folder `Infos` on the desktop instead of directly on it, so
+  they can't be changed by accident: `Infos` is a link to
+  `/usr/share/jugendhackt-iso/desktop`, where the files belong to root. A
+  read-only file on the desktop wasn't enough, since the text editor replaced
+  it when saving. Copies on the desktop from older versions are replaced by
+  the link on the next login. `ansible/desktop-files.yml` does the same on
+  Linux, and copies the files read-only on Macs.
 
 ## [3] - 2026-10-12
 
