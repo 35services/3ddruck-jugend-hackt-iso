@@ -1,0 +1,88 @@
+# Boots the MX Linux live system from its ISO file on the internal disk, from a
+# GRUB menu entry of the installed stick system, e.g. to install MX Linux next to
+# it. Unlike a stick, it needs no USB port, which the 12" MacBook only has one of,
+# and the entry already contains the MacBook's keyboard fix (README.md, the
+# applespi "SPI transfer timed out"), which the MX stick lacks.
+#
+# Copies the ISO from the Mac running Ansible to /isos and adds the entry
+# "MX Linux Live (ISO)" to the GRUB menu. In the live system, don't let the
+# MacBook sleep: after waking, the keyboard stops working again.
+#
+# Usage: ansible-playbook -i inventory.ini mx-linux-iso.yml --limit 3d-ag-macbook-one.local
+#
+# Optional, with -e:
+#   mx_iso_src     the ISO on the Mac (default: ~/Downloads/MX-25.3_Xfce_x64.iso)
+#   mx_iso_sha256  its SHA-256, from the .sha256 file next to the download on SourceForge
+
+- name: Boot the MX Linux live ISO from the disk
+  hosts: installed
+  become: true
+  vars:
+    mx_iso_src: "{{ lookup('ansible.builtin.env', 'HOME') }}/Downloads/MX-25.3_Xfce_x64.iso"
+    mx_iso_sha256: 25b5ce20caeee1b0e50507291df5ac8a8211b1b9999d8dd7416da9b66ed9fbf9
+    mx_iso_dir: /isos
+    mx_iso_path: "{{ mx_iso_dir }}/{{ mx_iso_src | basename }}"
+    # German live system, MacBook8,1 keyboard and trackpad without DMA (see README.md)
+    mx_kernel_options: >-
+      lang=de_DE kbd=de tz=Europe/Berlin quiet splasht nosplash
+      modprobe.blacklist=dw_dmac_pci
+
+  tasks:
+    - name: Check the ISO on the Mac
+      ansible.builtin.stat:
+        path: "{{ mx_iso_src }}"
+        checksum_algorithm: sha256
+      delegate_to: localhost
+      become: false
+      register: mx_iso_local
+
+    - name: Make sure it is the downloaded MX Linux ISO
+      ansible.builtin.assert:
+        that:
+          - mx_iso_local.stat.exists
+          - mx_iso_local.stat.checksum == mx_iso_sha256
+        fail_msg: "{{ mx_iso_src }} is missing or its SHA-256 isn't {{ mx_iso_sha256 }}"
+
+    - name: Create the folder for ISO files
+      ansible.builtin.file:
+        path: "{{ mx_iso_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy the ISO (about 3 GB, takes a few minutes over Wi-Fi)
+      ansible.builtin.copy:
+        src: "{{ mx_iso_src }}"
+        dest: "{{ mx_iso_path }}"
+        mode: "0644"
+
+    # MX's initrd searches the partition with this UUID for the file given in fromiso=
+    - name: Find the partition the ISO is on
+      ansible.builtin.command: findmnt --noheadings --output UUID --target {{ mx_iso_path }}
+      register: mx_iso_uuid
+      changed_when: false
+      check_mode: false
+
+    - name: Add the GRUB menu entry
+      ansible.builtin.copy:
+        dest: /etc/grub.d/42_mx-linux-iso
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          exec tail -n +3 $0
+          # added by ansible/mx-linux-iso.yml
+          menuentry "MX Linux Live (ISO)" {
+              insmod part_gpt
+              insmod ext2
+              insmod loopback
+              insmod iso9660
+              search --no-floppy --fs-uuid --set=root {{ mx_iso_uuid.stdout }}
+              loopback loop {{ mx_iso_path }}
+              linux (loop)/antiX/vmlinuz buuid={{ mx_iso_uuid.stdout }} fromiso={{ mx_iso_path }} {{ mx_kernel_options }}
+              initrd (loop)/antiX/initrd.gz
+          }
+      notify: Update GRUB
+
+  handlers:
+    - name: Update GRUB
+      ansible.builtin.command: update-grub
+      changed_when: true
