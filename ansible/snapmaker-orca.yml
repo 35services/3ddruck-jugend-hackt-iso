@@ -1,11 +1,23 @@
 ---
-# Installs Snapmaker Orca from the Flatpak bundle on its GitHub releases page,
-# since it isn't available on Flathub.
+# Installs Snapmaker Orca from its GitHub releases page, since it isn't available
+# on Flathub. Two ways, set per host or group with snapmaker_orca_package:
+#
+#   flatpak   (default) the Flatpak bundle, like the image. Needs the GNOME
+#             runtime from Flathub (about 1.1 GB).
+#   appimage  the AppImage, unpacked to /opt/snapmaker-orca/app (about 360 MB),
+#             using the system's libraries. For MX Linux ([mx] in inventory.ini),
+#             see mx-learnings.md.
 #
 # Usage: ansible-playbook -i inventory.ini snapmaker-orca.yml --ask-become-pass
 #
-# An installed version is not updated. To update, uninstall it first with
+# An installed Flatpak is not updated. To update, uninstall it first with
 # flatpak uninstall --system io.github.Snapmaker.Snapmaker_Orca
+# The AppImage is replaced when snapmaker_orca_version changes.
+#
+# On Xfce (MX Linux), also adds Orca to the favorites of the app menu (Whisker
+# menu) and to the dock in the panel. The user must be logged in to the desktop,
+# since the menu is changed through the running session. Not wanted:
+# -e snapmaker_orca_favorite=false. On GNOME, gnome-dash.yml does this.
 
 - name: Install Snapmaker Orca
   # also MX Linux, which doesn't come with it
@@ -13,56 +25,134 @@
   become: true
   vars:
     snapmaker_orca_version: "2.4.0"
-    snapmaker_orca_url: "https://github.com/Snapmaker/OrcaSlicer/releases/download/v{{ snapmaker_orca_version }}/Snapmaker_Orca-Linux-flatpak_V{{ snapmaker_orca_version }}_x86_64.flatpak"
+    snapmaker_orca_release: https://github.com/Snapmaker/OrcaSlicer/releases/download/v{{ snapmaker_orca_version }}
+    snapmaker_orca_url: "{{ snapmaker_orca_release }}/Snapmaker_Orca-Linux-flatpak_V{{ snapmaker_orca_version }}_x86_64.flatpak"
+    snapmaker_orca_appimage_url: "{{ snapmaker_orca_release }}/Snapmaker_Orca_Linux_AppImage_Ubuntu2404_V{{ snapmaker_orca_version }}.AppImage"
     snapmaker_orca_app_id: io.github.Snapmaker.Snapmaker_Orca
     # runtime from the app's Flatpak manifest, installed from Flathub
     snapmaker_orca_runtime: org.gnome.Platform//49
     snapmaker_orca_bundle: /tmp/snapmaker-orca.flatpak
+    snapmaker_orca_dir: /opt/snapmaker-orca
+    snapmaker_orca_favorite: true
+    # set in inventory.ini, play variables would override it there
+    orca_package: "{{ snapmaker_orca_package | default('flatpak') }}"
 
   tasks:
-    - name: Install Flatpak
-      ansible.builtin.apt:
-        name: flatpak
-        state: present
-        update_cache: true
-
-    - name: Add the Flathub remote
-      ansible.builtin.command: flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-      changed_when: false
-
-    - name: Check whether the runtime is installed
-      ansible.builtin.command: flatpak info --system {{ snapmaker_orca_runtime }}
-      register: runtime_info
-      changed_when: false
-      failed_when: false
-
-    - name: Install the runtime
-      ansible.builtin.command: flatpak install --system --noninteractive -y flathub {{ snapmaker_orca_runtime }}
-      when: runtime_info.rc != 0
-
-    - name: Check whether Snapmaker Orca is installed
-      ansible.builtin.command: flatpak info --system {{ snapmaker_orca_app_id }}
-      register: app_info
-      changed_when: false
-      failed_when: false
-
-    - name: Install Snapmaker Orca
-      when: app_info.rc != 0
+    - name: Install Snapmaker Orca as a Flatpak
+      when: orca_package == 'flatpak'
       block:
-        - name: Download the Flatpak bundle
-          ansible.builtin.get_url:
-            url: "{{ snapmaker_orca_url }}"
-            dest: "{{ snapmaker_orca_bundle }}"
-            mode: "0644"
+        - name: Install Flatpak
+          ansible.builtin.apt:
+            name: flatpak
+            state: present
+            update_cache: true
 
-        - name: Install the Flatpak bundle
-          ansible.builtin.command: flatpak install --system --noninteractive -y --bundle {{ snapmaker_orca_bundle }}
+        - name: Add the Flathub remote
+          ansible.builtin.command: flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          changed_when: false
 
-      always:
-        - name: Remove the downloaded bundle
-          ansible.builtin.file:
-            path: "{{ snapmaker_orca_bundle }}"
-            state: absent
+        - name: Check whether the runtime is installed
+          ansible.builtin.command: flatpak info --system {{ snapmaker_orca_runtime }}
+          register: runtime_info
+          changed_when: false
+          failed_when: false
+
+        - name: Install the runtime
+          ansible.builtin.command: flatpak install --system --noninteractive -y flathub {{ snapmaker_orca_runtime }}
+          when: runtime_info.rc != 0
+
+        - name: Check whether Snapmaker Orca is installed
+          ansible.builtin.command: flatpak info --system {{ snapmaker_orca_app_id }}
+          register: app_info
+          changed_when: false
+          failed_when: false
+
+        - name: Install Snapmaker Orca
+          when: app_info.rc != 0
+          block:
+            - name: Download the Flatpak bundle
+              ansible.builtin.get_url:
+                url: "{{ snapmaker_orca_url }}"
+                dest: "{{ snapmaker_orca_bundle }}"
+                mode: "0644"
+
+            - name: Install the Flatpak bundle
+              ansible.builtin.command: flatpak install --system --noninteractive -y --bundle {{ snapmaker_orca_bundle }}
+
+          always:
+            - name: Remove the downloaded bundle
+              ansible.builtin.file:
+                path: "{{ snapmaker_orca_bundle }}"
+                state: absent
+
+    - name: Install Snapmaker Orca from the AppImage
+      when: orca_package == 'appimage'
+      block:
+        # its camera view (wxMediaCtrl) crashes Orca at the start without the
+        # X11 video outputs ximagesink and xvimagesink, which MX doesn't install
+        - name: Install GStreamer's X11 video outputs
+          ansible.builtin.apt:
+            name: gstreamer1.0-x
+            state: present
+            update_cache: true
+
+        - name: Read the installed version
+          ansible.builtin.slurp:
+            src: "{{ snapmaker_orca_dir }}/app/.version"
+          register: installed_version
+          failed_when: false
+
+        # unpacked, it starts without FUSE and like a normal program
+        - name: Unpack the AppImage
+          when: (installed_version.content | default('') | b64decode | trim) != snapmaker_orca_version
+          block:
+            - name: Create a folder to unpack it in
+              ansible.builtin.tempfile:
+                state: directory
+              register: unpack_dir
+
+            - name: Download the AppImage
+              ansible.builtin.get_url:
+                url: "{{ snapmaker_orca_appimage_url }}"
+                dest: "{{ unpack_dir.path }}/Snapmaker_Orca.AppImage"
+                mode: "0755"
+
+            - name: Unpack it
+              ansible.builtin.command: ./Snapmaker_Orca.AppImage --appimage-extract
+              args:
+                chdir: "{{ unpack_dir.path }}"
+
+            - name: Remove the previous version
+              ansible.builtin.file:
+                path: "{{ snapmaker_orca_dir }}/app"
+                state: absent
+
+            - name: Create the program folder
+              ansible.builtin.file:
+                path: "{{ snapmaker_orca_dir }}"
+                state: directory
+                mode: "0755"
+
+            - name: Move it to the program folder
+              ansible.builtin.command: mv {{ unpack_dir.path }}/squashfs-root {{ snapmaker_orca_dir }}/app
+
+            # some files only allow their owner to run them (libexec/snapmaker-orca-env
+            # is 754), fine in a mounted AppImage but not unpacked as root
+            - name: Let every user run it
+              ansible.builtin.command: chmod -R a+rX {{ snapmaker_orca_dir }}/app
+
+            - name: Note the version
+              ansible.builtin.copy:
+                dest: "{{ snapmaker_orca_dir }}/app/.version"
+                content: "{{ snapmaker_orca_version }}\n"
+                mode: "0644"
+
+          always:
+            - name: Remove the download
+              ansible.builtin.file:
+                path: "{{ unpack_dir.path }}"
+                state: absent
+              when: unpack_dir.path is defined
 
     # replaces the app menu entry, see data/applications for why
     - name: Make sure the user's applications folder exists
@@ -78,3 +168,64 @@
         src: "{{ playbook_dir }}/../data/applications/io.github.Snapmaker.Snapmaker_Orca.desktop"
         dest: ~/.local/share/applications/io.github.Snapmaker.Snapmaker_Orca.desktop
         mode: "0644"
+      when: orca_package == 'flatpak'
+
+    # same name as the Flatpak's entry, so default-apps.yml and the favorites
+    # find it. Skips AppRun, which sets LC_ALL=C, and starts it like the
+    # Flatpak's entry with an English locale
+    - name: Add Snapmaker Orca (AppImage) to the app menu
+      become: false
+      ansible.builtin.copy:
+        dest: ~/.local/share/applications/{{ snapmaker_orca_app_id }}.desktop
+        content: |
+          [Desktop Entry]
+          Name=Snapmaker Orca
+          GenericName=3D Printing Software
+          Icon={{ snapmaker_orca_dir }}/app/Snapmaker_Orca.png
+          Exec=env LC_ALL=en_US.UTF-8 {{ snapmaker_orca_dir }}/app/libexec/snapmaker-orca-env {{ snapmaker_orca_dir }}/app/bin/snapmaker-orca %F
+          Terminal=false
+          Type=Application
+          MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/prs.wavefront-obj;application/x-amf;
+          Categories=Graphics;3DGraphics;Engineering;
+          Keywords=3D;Printing;Slicer;slice;printer;convert;gcode;stl;obj;amf;
+          StartupNotify=false
+          StartupWMClass=snapmaker-orca
+        mode: "0644"
+      when: orca_package == 'appimage'
+
+    - name: Remove the test entry from trying the AppImage
+      become: false
+      ansible.builtin.file:
+        path: ~/.local/share/applications/snapmaker-orca-english.desktop
+        state: absent
+
+    # xfconf-query talks to the running desktop session over D-Bus. Orca goes first
+    # in the Whisker menu's favorites and last in the dock (docklike), which reads its
+    # pinned apps only when the panel starts
+    - name: Add Snapmaker Orca to the Xfce app menu's favorites and the dock
+      become: false
+      when: snapmaker_orca_favorite | bool
+      ansible.builtin.shell: |
+        app={{ snapmaker_orca_app_id }}
+        pid=$(pgrep -u "$(id -u)" -x xfce4-panel | head -n 1)
+        if [ -z "$pid" ]; then echo "no Xfce panel running"; exit 0; fi
+        export $(tr '\0' '\n' < /proc/$pid/environ | grep -E '^(DBUS_SESSION_BUS_ADDRESS|DISPLAY)=')
+        for plugin in $(xfconf-query -c xfce4-panel -p /plugins -l -v | awk '$2 == "whiskermenu" {print $1}'); do
+          favorites=$(xfconf-query -c xfce4-panel -p "$plugin/favorites" 2>/dev/null | tail -n +3)
+          echo "$favorites" | grep -qx "$app.desktop" && continue
+          set -- -t string -s "$app.desktop"
+          for favorite in $favorites; do set -- "$@" -t string -s "$favorite"; done
+          xfconf-query -c xfce4-panel -p "$plugin/favorites" --create --force-array "$@"
+          echo "changed: $plugin"
+        done
+        restart_panel=
+        for rc in "$HOME"/.config/xfce4/panel/docklike-*.rc; do
+          [ -f "$rc" ] || continue
+          grep -q "^pinned=\(.*;\)\?$app;" "$rc" && continue
+          sed -i "s/^pinned=\(.*\)$/pinned=\1$app;/" "$rc"
+          echo "changed: $rc"
+          restart_panel=yes
+        done
+        if [ -n "$restart_panel" ]; then xfce4-panel -r; fi
+      register: xfce_favorites
+      changed_when: "'changed:' in xfce_favorites.stdout"
