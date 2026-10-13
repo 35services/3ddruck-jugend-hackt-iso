@@ -82,6 +82,13 @@ added by `ansible/mx-linux-iso.yml`.
 - Renaming: `/etc/hostname`, `/etc/hosts` (127.0.1.1), `hostname <new>`,
   `service avahi-daemon restart`. The mDNS name changes immediately; accept the
   SSH host key once more for the new name.
+- Renaming while logged in confuses the running desktop session until the
+  next login: its X cookie (`xauth list`) and session manager still use the old
+  name, so window titles get "(auf <hostname>)", some programs report
+  "Authorization required, but no authorization protocol specified", and
+  `.xsession-errors` shows "_IceTransSocketUNIXConnect: Cannot connect to
+  non-local host". Log out and in (or restart) after renaming, or rename in the
+  installer.
 
 ## sysvinit instead of systemd
 
@@ -145,8 +152,11 @@ added by `ansible/mx-linux-iso.yml`.
 - So the AppImage needs packages from the system that are easy to miss; the
   Flatpak's runtime brings them. One more point for the Flatpak.
 - On MX there are two test launchers: "Snapmaker Orca" (`AppRun`,
-  `LC_ALL=C`) and "Snapmaker Orca (English)" (`LC_ALL=en_US.UTF-8`). Whether
-  the web view works with each is still to be tested after the fix.
+  `LC_ALL=C`) and "Snapmaker Orca (English)" (`LC_ALL=en_US.UTF-8`).
+- With `gstreamer1.0-x` (2026-10-14): "Snapmaker Orca (English)" starts, the
+  main window and the setup wizard (printer selection, a web page) work, with
+  8 WebKit processes. The `AppRun` launcher (`LC_ALL=C`) is still to be
+  tested, as are logging in and slicing.
 
 ### The image's other Flatpaks
 
