@@ -8,6 +8,9 @@
 # "MX Linux Live (ISO)" to the GRUB menu. In the live system, don't let the
 # MacBook sleep: after waking, the keyboard stops working again.
 #
+# Once MX is installed onto a partition labelled "mx", also adds "MX Linux", which
+# starts the installed MX with the keyboard fix.
+#
 # Usage: ansible-playbook -i inventory.ini mx-linux-iso.yml --limit 3d-ag-macbook-one.local
 #
 # Optional, with -e:
@@ -93,6 +96,34 @@
               linux (loop)/antiX/vmlinuz buuid={{ mx_iso_uuid.stdout }} fromiso={{ mx_iso_path }} toram {{ mx_kernel_options }}
               initrd (loop)/antiX/initrd.gz
           }
+      notify: Update GRUB
+
+    # MX installed from the live system without its own boot loader (the installer's
+    # GRUB unticked), on a partition labelled "mx". /vmlinuz and /initrd.img follow
+    # MX's kernel updates
+    - name: Find the installed MX Linux
+      ansible.builtin.command: blkid --match-token LABEL=mx --match-tag UUID --output value
+      register: mx_root_uuid
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Add the GRUB menu entry for the installed MX Linux
+      ansible.builtin.copy:
+        dest: /etc/grub.d/43_mx-linux
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          exec tail -n +3 $0
+          # added by ansible/mx-linux-iso.yml
+          menuentry "MX Linux" {
+              insmod part_gpt
+              insmod ext2
+              search --no-floppy --fs-uuid --set=root {{ mx_root_uuid.stdout }}
+              linux /vmlinuz root=UUID={{ mx_root_uuid.stdout }} ro quiet splash modprobe.blacklist=dw_dmac_pci
+              initrd /initrd.img
+          }
+      when: mx_root_uuid.stdout | length > 0
       notify: Update GRUB
 
   handlers:
