@@ -1,0 +1,50 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          tailscaled
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Tailscale node agent
+### END INIT INFO
+
+# Starts tailscaled on systems with sysvinit (MX Linux), whose Tailscale package
+# only has a systemd service. Installed by ansible/tailscale.yml. Uses the same
+# settings as the systemd service: PORT and FLAGS from /etc/default/tailscaled.
+
+DAEMON=/usr/sbin/tailscaled
+PIDFILE=/run/tailscaled.pid
+PORT=41641
+FLAGS=
+[ -r /etc/default/tailscaled ] && . /etc/default/tailscaled
+
+. /lib/lsb/init-functions
+
+case "$1" in
+  start)
+    log_daemon_msg "Starting Tailscale" tailscaled
+    mkdir -p /var/lib/tailscale /run/tailscale
+    start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$PIDFILE" \
+      --exec "$DAEMON" -- --state=/var/lib/tailscale/tailscaled.state \
+      --socket=/run/tailscale/tailscaled.sock --port="$PORT" $FLAGS
+    log_end_msg $?
+    ;;
+  stop)
+    log_daemon_msg "Stopping Tailscale" tailscaled
+    start-stop-daemon --stop --quiet --pidfile "$PIDFILE" --retry 10 --remove-pidfile
+    status=$?
+    "$DAEMON" --cleanup >/dev/null 2>&1
+    log_end_msg $status
+    ;;
+  restart|force-reload)
+    "$0" stop
+    "$0" start
+    ;;
+  status)
+    status_of_proc -p "$PIDFILE" "$DAEMON" tailscaled
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|force-reload|status}" >&2
+    exit 3
+    ;;
+esac

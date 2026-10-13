@@ -19,9 +19,11 @@
   hosts: all
   become: true
   vars:
+    # empty without ../secrets (e.g. in a git worktree, which doesn't have it)
     tailscale_auth_key: >-
-      {{ lookup('ansible.builtin.ini', 'TAILSCALE_AUTHKEY', file=playbook_dir ~ '/../secrets',
-                type='properties', default='') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+      {{ (lookup('ansible.builtin.ini', 'TAILSCALE_AUTHKEY', file=playbook_dir ~ '/../secrets',
+                 type='properties', default='') if (playbook_dir ~ '/../secrets') is file else '')
+         | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
     tailscale_distribution: "{{ ansible_facts.distribution | lower }}"
     tailscale_keyring: /usr/share/keyrings/tailscale-archive-keyring.gpg
 
@@ -52,6 +54,14 @@
         name: tailscale
         state: present
         update_cache: true
+
+    # the package only has a systemd service
+    - name: Add a start script for sysvinit (MX Linux)
+      ansible.builtin.copy:
+        src: files/tailscaled.init
+        dest: /etc/init.d/tailscaled
+        mode: "0755"
+      when: ansible_facts.service_mgr == 'sysvinit'
 
     - name: Start Tailscale on boot
       ansible.builtin.service:
