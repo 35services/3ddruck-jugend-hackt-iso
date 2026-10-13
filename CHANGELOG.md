@@ -12,6 +12,12 @@ the desktop, and `.iso-version` must contain the same number.
 
 ## [Unreleased]
 
+### Changed
+
+- The `.txt` files on the desktop (`LIESMICH.txt`, `axidraw.txt`,
+  `version.txt` and the account logins) are read-only, so they aren't changed
+  by accident. `ansible/desktop-files.yml` writes them read-only too.
+
 ## [3] - 2026-10-12
 
 ### Added

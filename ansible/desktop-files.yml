@@ -68,7 +68,8 @@
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../data/desktop/"
         dest: "{{ desktop_dir }}/"
-        mode: "0644"
+        # read-only, like in the image, so the texts aren't changed by accident
+        mode: "0444"
 
     - name: Write the Snapmaker login
       ansible.builtin.copy:
@@ -79,7 +80,7 @@
 
           Benutzer: {{ snapmaker_username }}
           Passwort: {{ snapmaker_password }}
-        mode: "0600"
+        mode: "0400"
       no_log: true
 
     - name: Write the MakerWorld login
@@ -91,5 +92,5 @@
 
           Benutzer: {{ makerworld_username }}
           Passwort: {{ makerworld_password }}
-        mode: "0600"
+        mode: "0400"
       no_log: true

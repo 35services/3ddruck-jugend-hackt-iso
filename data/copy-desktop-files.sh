@@ -2,7 +2,8 @@
 
 # copies /usr/share/jugendhackt-iso/desktop to the user's desktop on the first login.
 # The desktop folder name depends on the language, e.g. "Desktop" or "Schreibtisch".
-# Runs only once, so deleted files are not restored.
+# Runs only once, so deleted files are not restored. cp keeps the files' mode, so
+# the .txt files, which the build makes read-only, stay read-only on the desktop.
 #
 # Also copies the files from /etc/skel that are missing in the home folder. The
 # home folder is kept on the persistence partition (data/persistence.conf), so it
