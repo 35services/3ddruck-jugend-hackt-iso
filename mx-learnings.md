@@ -131,10 +131,22 @@ added by `ansible/mx-linux-iso.yml`.
 - `AppRun` sets `LC_ALL=C` and calls
   `libexec/snapmaker-orca-env bin/snapmaker-orca`. Starting the wrapper
   directly allows another locale (`LC_ALL=en_US.UTF-8`, available on MX).
-- Test (2026-10-13): through `AppRun` it starts and shows the splash screen.
-  Whether the main window and the web view work with `LC_ALL=C`, and with
-  `en_US.UTF-8`, is still to be tested. On MX there are two launchers for it:
-  "Snapmaker Orca" and "Snapmaker Orca (English)".
+- **On MX it crashes after the splash screen** (segfault, exit code 139),
+  with either locale. The kernel log (`dmesg`) shows the same address every
+  time; `addr2line -f -C -e bin/snapmaker-orca 0x221fd4e` names
+  `wxMediaCtrl2::wxMediaCtrl2`, Orca's video player for the printer camera.
+  With `GST_DEBUG=3`, GStreamer reports `no such element factory "ximagesink"`
+  and `"xvimagesink"`: wxWidgets' GStreamer player can't be created, and Orca
+  uses it anyway.
+- Cause: Debian ships these X11 video outputs in **`gstreamer1.0-x`**, which MX
+  doesn't install (GNOME pulls it in on the sticks; the Flatpak has its own
+  GStreamer). The AppImage uses the system's GStreamer and doesn't bundle it.
+  Fix: `sudo apt install gstreamer1.0-x` (377 KB).
+- So the AppImage needs packages from the system that are easy to miss; the
+  Flatpak's runtime brings them. One more point for the Flatpak.
+- On MX there are two test launchers: "Snapmaker Orca" (`AppRun`,
+  `LC_ALL=C`) and "Snapmaker Orca (English)" (`LC_ALL=en_US.UTF-8`). Whether
+  the web view works with each is still to be tested after the fix.
 
 ### The image's other Flatpaks
 
