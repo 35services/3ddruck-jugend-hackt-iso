@@ -202,6 +202,22 @@ On the 12" MacBook (MacBook8,1), the keyboard and trackpad may not work, sometim
 echo "blacklist dw_dmac_pci" | sudo tee /etc/modprobe.d/macbook-spi-keyboard.conf
 sudo update-initramfs -u
 ```
+After waking from sleep (suspend to RAM), the transfers time out again, also without DMA. A sleep hook unloads the drivers before sleep and loads them again after waking, which sets the SPI controller up like at boot. systemd 262 only runs hooks in `/usr/lib/systemd/system-sleep`, which may not exist yet:
+```shell
+sudo mkdir -p /usr/lib/systemd/system-sleep
+sudo tee /usr/lib/systemd/system-sleep/macbook-spi-keyboard <<'EOF'
+#!/bin/sh
+# MacBook8,1: after waking from sleep, the SPI transfers to the keyboard and
+# trackpad (applespi) time out. Unload their drivers before sleep and load them
+# again after waking, so the SPI controller is set up like at boot.
+[ "$(cat /sys/class/dmi/id/product_name 2>/dev/null)" = "MacBook8,1" ] || exit 0
+case "$1" in
+  pre) modprobe -r applespi spi_pxa2xx_pci ;;
+  post) modprobe -a spi_pxa2xx_pci applespi ;;
+esac
+EOF
+sudo chmod 755 /usr/lib/systemd/system-sleep/macbook-spi-keyboard
+```
 Without restarting, `sudo modprobe -r applespi spi_pxa2xx_pci`, `echo 0000:00:15.0 | sudo tee /sys/bus/pci/drivers/dw_dmac_pci/unbind` and `sudo modprobe -a spi_pxa2xx_pci applespi` bring them back, over SSH or with a USB keyboard.
 
 ### Standalone using system libraries
