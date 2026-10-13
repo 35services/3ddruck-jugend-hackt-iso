@@ -136,6 +136,69 @@ added by `ansible/mx-linux-iso.yml`.
   `en_US.UTF-8`, is still to be tested. On MX there are two launchers for it:
   "Snapmaker Orca" and "Snapmaker Orca (English)".
 
+### The image's other Flatpaks
+
+Orca isn't the only Flatpak. `config.sample` installs 7 more apps from
+Flathub (`ADDITIONAL_FLATPAKS`), so an MX-based image or a fully set up MX
+machine needs Flatpak and Flathub anyway. Their runtimes, per Flathub's API on
+2026-10-13 (installed sizes, uncompressed):
+
+| App | Runtime | App installed |
+|---|---|---|
+| Arduino IDE 2 (`cc.arduino.IDE2`) | Freedesktop 25.08 | 587 MB |
+| VSCodium (`com.vscodium.codium`) | Freedesktop **SDK** 25.08 | 713 MB |
+| Scratch (`edu.mit.Scratch`) | Freedesktop 22.08 | 442 MB |
+| Processing (`org.processing.processingide`) | Freedesktop 23.08 | 444 MB |
+| ungoogled Chromium | Freedesktop 26.08 | 392 MB |
+| PrusaSlicer (`com.prusa3d.PrusaSlicer`) | GNOME 50 | 285 MB |
+| Cura (`com.ultimaker.cura`) | Freedesktop 25.08 | 921 MB |
+| Snapmaker Orca (bundle) | GNOME 49 | ~0.3 GB |
+
+Runtimes (current branch per Flathub): Freedesktop 722 MB, GNOME 1128 MB, KDE
+1056 MB (not needed). Older branches (22.08, 23.08) and the SDK differ in size.
+
+- The apps need **6 different runtimes**: Freedesktop 22.08, 23.08, 25.08,
+  26.08, the Freedesktop SDK 25.08 and GNOME 50, plus GNOME 49 for Orca.
+  Flatpak's storage (ostree) keeps identical files only once, so overlapping
+  runtimes take less space than their sum.
+- So the question isn't "Flatpak or not" for the system, only for Orca. With
+  Flatpak already there, Orca as a Flatpak adds the GNOME 49 runtime (~1.1 GB)
+  and its bundle. If Snapmaker moves to GNOME 50, it shares PrusaSlicer's.
+- Flatpak is the modern, uniform route: the same packages on the Ubuntu
+  laptops, the sticks and MX, independent of the distribution, with updates
+  through `flatpak update` (Flathub apps; the Orca bundle has to be replaced).
+  Some apps also exist as Debian packages (Chromium, PrusaSlicer, an old
+  Arduino IDE), but mostly in older versions; VSCodium, Scratch, Processing
+  and current Cura don't.
+
+### Performance
+
+Not measured yet. The "start time" rows above were estimates. What is known
+in general:
+
+- **While running**, a Flatpak app is a normal process in a sandbox (bubblewrap
+  namespaces, no emulation or virtual machine). Slicing is as fast as a native
+  build, apart from differences in compiler settings and library versions.
+- **Graphics:** Flatpak brings its own Mesa (`org.freedesktop.Platform.GL`).
+  It's usually newer than the system's; for the MacBook's Intel HD 515 that
+  shouldn't matter, but older GPUs are worth a check.
+- **RAM:** a Flatpak app loads the runtime's libraries (GTK, WebKit, …), not
+  the system's, so they aren't shared with other apps. A few hundred MB more
+  with several apps open at once.
+- **Start:** Flatpak sets up the sandbox (~0.1–0.3 s) and is slower on the
+  very first start (font cache). An AppImage mounts its compressed file through
+  FUSE and decompresses what it reads; unpacked, it starts like a normal
+  program.
+
+How to measure on the MacBook, after the update and with both installed on MX:
+
+1. Start time to the main window, 3× cold (after
+   `sync; echo 3 | sudo tee /proc/sys/vm/drop_caches`) and 3× warm, e.g. with
+   `time` around the start and `xdotool search --sync --class snapmaker-orca`.
+2. Slicing time of the same model and profile, on the command line
+   (`snapmaker-orca --slice …`) or with a stopwatch in the app.
+3. RAM with Orca open (`free -m` before and after, or `smem`).
+
 ## Working with Claude Code
 
 - A git worktree lacks the ignored files (`secrets`, `config`, `cache`):
