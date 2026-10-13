@@ -95,6 +95,7 @@ The playbooks in `ansible/` set up an installed Ubuntu or Debian machine, such a
 - `default-apps.yml` makes Snapmaker Orca the default app for STL and 3MF files, for the user, instead of FreeCAD. It needs no sudo.
 - `orca-scale.yml` shrinks Snapmaker Orca's interface to 65% (`-e orca_ui_scale=0.75` for another size), so more of it fits on small screens like the Acer laptop's 1366x768. GNOME can't scale below 100%, but `GDK_DPI_SCALE` scales the fonts of GTK apps, and Orca sizes most of its interface by them. It changes the launchers in the app menu and on the desktop, so run it after `gnome-dash.yml`, which copies the unscaled launcher.
 - `tailscale.yml` installs Tailscale from its official package source (`pkgs.tailscale.com`, for the machine's distribution and codename) and starts it on boot. With `TAILSCALE_AUTHKEY` in `secrets`, it also logs the machine in to the tailnet; otherwise log in on the machine with `sudo tailscale up --hostname=<name>`. Give sticks their own name, since they all have the same hostname.
+- `mx-linux-iso.yml` copies the [MX Linux](https://mxlinux.org/) live ISO from the Mac's `~/Downloads` to `/isos` on a machine in `[installed]` and adds "MX Linux Live (ISO)" to its GRUB menu, which boots the live system from that file, e.g. to install MX Linux into free space next to the stick's system. It needs no USB port, and the entry contains the 12" MacBook's keyboard fix (`modprobe.blacklist=dw_dmac_pci`, see [Install a stick's system onto a disk](#install-a-sticks-system-onto-a-disk)), which the MX stick lacks.
 - `oh-my-zsh.yml` installs zsh and [Oh My Zsh](https://ohmyz.sh/) for the user and makes zsh the login shell. Instead of piping the official installer into `sh`, it clones Oh My Zsh and copies its `.zshrc` template, which is what the installer does. An existing `~/.zshrc` is kept.
 - `auto-login.yml` lets the kids use the machine without a password: GDM logs the user in automatically, and the lock screen is off, also after suspend. sudo still asks for the password. It takes effect after the next restart.
 
@@ -103,6 +104,21 @@ The shared folder "Geteilter Ordner", which syncs 3D printing files between the 
 `auto-login.yml` doesn't change power settings. With Ubuntu's defaults, the screen turns off after 5 minutes without use. On battery, the machine suspends after 15 minutes, and it also suspends when the lid is closed. On the AG's laptop, automatic suspend while plugged in is turned off in the settings, so it stays awake unless the lid is closed.
 
 Without a password at login, Ubuntu's login keyring stays locked, so apps that store passwords, such as a browser, may ask for it. To prevent this, give the keyring an empty password once on the machine: in *Passwörter und Verschlüsselung* (Seahorse), right-click *Anmeldung*, choose *Passwort ändern* and leave the new password empty. Saved passwords are then stored unencrypted.
+
+### Experiment: MX Linux
+
+[MX Linux](https://mxlinux.org/) (Debian stable with Xfce, from the antiX project) promises to run better on older machines than Debian with GNOME. If it holds up, a future version of the whole image may be based on it. So far it was tried on the 12" MacBook, as a live system, in October 2026 with MX 25.3 Xfce (Debian 13), and it seems usable.
+
+**Starting it.** `ansible/mx-linux-iso.yml` puts the ISO on the MacBook's Debian and adds "MX Linux Live (ISO)" to its GRUB menu, with the keyboard fix on the kernel command line. If the GRUB menu can't be used, start it once from Debian with `sudo grub-reboot "MX Linux Live (ISO)"` and restart. The live user is `demo` with the password `demo` (root: `root`). The live system has no SSH server: install and open it in a terminal on the machine with `sudo apt install -y openssh-server`, `sudo service ssh start` and `sudo ufw allow 22/tcp`, then `ssh-copy-id demo@mx1.local`. The inventory's `[mx]` group contains it.
+
+**What works without changes:** `snapmaker-orca.yml` (Snapmaker Orca with the locale fix, its size is fine on the MacBook's Retina screen without `orca-scale.yml`), `desktop-files.yml`, `default-apps.yml` and `oh-my-zsh.yml`. Inkscape with the AxiDraw extension, OpenSCAD and FreeCAD 1.0.2 install from apt. The MacBook's keyboard needs the same fix as Debian: `modprobe.blacklist=dw_dmac_pci` (in the GRUB entry) and the sleep hook from [Install a stick's system onto a disk](#install-a-sticks-system-onto-a-disk), which MX runs from `/usr/lib/elogind/system-sleep/`.
+
+**What differs:**
+- MX starts with sysvinit instead of systemd. Tailscale's package doesn't start `tailscaled` there: start it with `sudo tailscaled --state=/var/lib/tailscale/tailscaled.state &`, then `sudo tailscale up --hostname=<name>`. The Geteilter Ordner's client runs Syncthing as a systemd user service; on MX it was started from an Xfce autostart entry instead, and synced with the hub over Tailscale.
+- `gnome-dash.yml` and `auto-login.yml` are for GNOME and GDM. MX uses Xfce and LightDM, and its live system logs in automatically.
+- The live system runs from RAM: its 6 GB overlay held Orca, Inkscape, OpenSCAD and FreeCAD, but not PrusaSlicer and Cura, and all changes are lost on restart.
+
+**Next steps:** install MX into the MacBook's free disk space (custom partitioning, using the existing EFI partition without formatting it), set it up again, and compare it with the stick on the AG's older machines.
 
 ### Build using Docker
 
