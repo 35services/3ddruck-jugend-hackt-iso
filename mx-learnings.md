@@ -109,6 +109,34 @@ added by `ansible/mx-linux-iso.yml`.
   2026-10-14: connected to the hub, the folder synced. The live system's old
   device `3d-ag-macbook-mx` was removed from the hub.
 
+## Folder icons on Xfce
+
+- Xfce 4.20 ignores GNOME's `metadata::custom-icon`: neither `xfdesktop` nor
+  `thunar` contains the attribute name (`strings`). A Thunar merge request for
+  custom icons (`metadata::icon`) has been a draft since 2023
+  ([thunar!404](https://gitlab.xfce.org/xfce/thunar/-/merge_requests/404)).
+- Thunar does show **folder thumbnails** (since 1.8,
+  [bug 14576](https://bugzilla.xfce.org/show_bug.cgi?id=14576)), made by a
+  thumbnailer for `inode/directory`. MX ships one
+  (`/usr/share/thumbnailers/folder.thumbnailer` → `/usr/bin/folder-thumbnailer`,
+  package `desktop-defaults-mx-xfce-system`): it uses `folder.jpg`,
+  `.folder.jpg`, `folder.png` or `cover.jpg` inside the folder, via ImageMagick,
+  which reads a PNG named `.folder.jpg` by its content, keeping transparency.
+  Thunar picks it up after a restart (`thunar --quit`).
+- **Xfce's desktop doesn't show folder thumbnails**, even after `xfdesktop
+  --quit` and a restart, although the thumbnail exists.
+- So the Geteilter Ordner on Xfce: folder in `~/Geteilter Ordner` (Thunar shows
+  it with the icon, via `.folder.jpg`), a launcher with the icon on the
+  desktop, and a GTK bookmark (side panel, open/save dialogs). Xfce 4.20 asks
+  before starting a desktop launcher unless it's executable and its SHA-256 is
+  stored as `metadata::xfce-exe-checksum` (set with `gio set`, through the
+  running session's bus so the desktop sees it).
+- Moving a synced folder: stop Syncthing first, then `mv`. Started with the old
+  path, Syncthing finds no `.stfolder` marker and pauses the folder instead of
+  deleting anything; the new path is set through its API.
+- zsh as the login shell (`oh-my-zsh.yml`) stops at globs without matches in
+  SSH commands; wrap them in `sh -c '…'`.
+
 ## Ansible playbooks on MX
 
 | Playbook | On MX | Note |
