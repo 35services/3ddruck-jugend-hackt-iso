@@ -80,6 +80,19 @@
               linux (loop)/antiX/vmlinuz buuid={{ mx_iso_uuid.stdout }} fromiso={{ mx_iso_path }} {{ mx_kernel_options }}
               initrd (loop)/antiX/initrd.gz
           }
+          # The MX Installer hides the disk the live system was booted from, i.e. the
+          # whole internal disk. toram copies the system into RAM (about 2 GB more) and
+          # releases the disk, so the installer offers its partitions again
+          menuentry "MX Linux Live (ISO, to RAM, for installing)" {
+              insmod part_gpt
+              insmod ext2
+              insmod loopback
+              insmod iso9660
+              search --no-floppy --fs-uuid --set=root {{ mx_iso_uuid.stdout }}
+              loopback loop {{ mx_iso_path }}
+              linux (loop)/antiX/vmlinuz buuid={{ mx_iso_uuid.stdout }} fromiso={{ mx_iso_path }} toram {{ mx_kernel_options }}
+              initrd (loop)/antiX/initrd.gz
+          }
       notify: Update GRUB
 
   handlers:
