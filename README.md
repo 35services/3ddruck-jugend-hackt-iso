@@ -100,6 +100,8 @@ The playbooks in `ansible/` set up an installed Ubuntu or Debian machine, such a
 
 The shared folder "Geteilter Ordner", which syncs 3D printing files between the AG's machines, is its own project: [3ddruck-geteilter-ordner](https://github.com/35services/3ddruck-geteilter-ordner). It uses the same Tailscale names as `tailscale.yml`.
 
+`screenshots/screenshots.py` takes a screenshot of every AG machine in the tailnet and shows them, with each desktop's `version.txt`, on one web page. See [screenshots/README.md](screenshots/README.md).
+
 `auto-login.yml` doesn't change power settings. With Ubuntu's defaults, the screen turns off after 5 minutes without use. On battery, the machine suspends after 15 minutes, and it also suspends when the lid is closed. On the AG's laptop, automatic suspend while plugged in is turned off in the settings, so it stays awake unless the lid is closed.
 
 Without a password at login, Ubuntu's login keyring stays locked, so apps that store passwords, such as a browser, may ask for it. To prevent this, give the keyring an empty password once on the machine: in *Passwörter und Verschlüsselung* (Seahorse), right-click *Anmeldung*, choose *Passwort ändern* and leave the new password empty. Saved passwords are then stored unencrypted.
