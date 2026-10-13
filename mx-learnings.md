@@ -97,8 +97,17 @@ added by `ansible/mx-linux-iso.yml`.
 - Tailscale: its package has only `tailscaled.service`. `tailscale.yml` now
   installs `ansible/files/tailscaled.init` on sysvinit, using
   `/etc/default/tailscaled` (PORT, FLAGS) like the systemd service.
-- MX's Xfce session has no systemd user services: the Geteilter Ordner's
-  Syncthing ran from an Xfce autostart entry instead.
+- MX's Xfce session has no systemd user services and no session bus at
+  `/run/user/<uid>/bus` (`loginctl enable-linger` doesn't exist either).
+- Start scripts for sysvinit: `start-stop-daemon` with `--oknodo`, otherwise
+  "stop" fails when nothing runs, and Ansible's first `restarted` fails.
+- Geteilter Ordner ([3ddruck-geteilter-ordner](https://github.com/35services/3ddruck-geteilter-ordner),
+  branch `mx-linux-client`): without systemd, `client-linux.yml` installs
+  `/etc/init.d/geteilter-ordner`, which runs Syncthing as `druck` from boot,
+  and sets the folder icon with `dbus-run-session -- gio`. In its (ignored)
+  inventory, MX is `3d-ag-macbook-one-mx.tail19e18b.ts.net`. Tested
+  2026-10-14: connected to the hub, the folder synced. The live system's old
+  device `3d-ag-macbook-mx` was removed from the hub.
 
 ## Ansible playbooks on MX
 
@@ -155,8 +164,15 @@ added by `ansible/mx-linux-iso.yml`.
   `LC_ALL=C`) and "Snapmaker Orca (English)" (`LC_ALL=en_US.UTF-8`).
 - With `gstreamer1.0-x` (2026-10-14): "Snapmaker Orca (English)" starts, the
   main window and the setup wizard (printer selection, a web page) work, with
-  8 WebKit processes. The `AppRun` launcher (`LC_ALL=C`) is still to be
-  tested, as are logging in and slicing.
+  8 WebKit processes. The `AppRun` launcher (`LC_ALL=C`) wasn't tested; logging
+  in and slicing are still to be tested.
+- Persisted in `snapmaker-orca.yml`: `snapmaker_orca_package=appimage` (set
+  for `[mx]` in `inventory.ini`) installs `gstreamer1.0-x`, unpacks the
+  AppImage to `/opt/snapmaker-orca/app` (with `chmod -R a+rX` and a `.version`
+  file), and adds the English-locale launcher under the Flatpak's name
+  `io.github.Snapmaker.Snapmaker_Orca.desktop`, so `default-apps.yml` and the
+  Xfce favorites and dock point to it. The unpack steps ran by hand on the
+  MacBook; through the playbook only with the version already in place.
 
 ### The image's other Flatpaks
 
