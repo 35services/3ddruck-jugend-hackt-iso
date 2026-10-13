@@ -9,7 +9,8 @@
 # Other size: add -e orca_ui_scale=0.75
 
 - name: Scale Snapmaker Orca's interface
-  hosts: all
+  # not MX Linux: on the 12" MacBook, Orca's size is already right there
+  hosts: all:!mx
   become: false
   vars:
     orca_ui_scale: "0.65"

@@ -7,7 +7,8 @@
 # Takes effect after the next restart.
 
 - name: Log in without a password
-  hosts: all
+  # not MX Linux: it has LightDM instead of GDM, and its installer sets up automatic login
+  hosts: all:!mx
   become: true
   vars:
     auto_login_user: "{{ ansible_user }}"

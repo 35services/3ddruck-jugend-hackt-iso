@@ -13,7 +13,8 @@
 # through the running session.
 
 - name: Save and apply the GNOME Dash
-  hosts: all
+  # not MX Linux: its Xfce has no GNOME Dash
+  hosts: all:!mx
   become: false
   vars:
     favorites_file: "{{ playbook_dir }}/files/favorite-apps.json"

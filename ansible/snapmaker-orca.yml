@@ -8,7 +8,8 @@
 # flatpak uninstall --system io.github.Snapmaker.Snapmaker_Orca
 
 - name: Install Snapmaker Orca
-  hosts: build
+  # also MX Linux, which doesn't come with it
+  hosts: build:mx
   become: true
   vars:
     snapmaker_orca_version: "2.4.0"
