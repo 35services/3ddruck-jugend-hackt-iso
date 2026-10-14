@@ -158,7 +158,7 @@ Lenovo runs Ubuntu 26.04, set up with some playbooks, not the image.)
 
 | What the sticks have | The stick's system (MacBook's Debian) | The MacBook's MX | Playbook |
 |---|---|---|---|
-| Not in the package list any more: Godot, Fritzing, the Android tools, IntelliJ IDEA, TIC-80, LibreSprite, Zulip, Collabora Office, LibreOffice | none of them, **except LibreOffice**: 39 packages, 642 MB (Writer, Calc, Impress, Draw, Math in the 13 languages), pulled in by `gnome` and the `task-<language>-desktop` packages | none of them, except LibreOffice (75 packages, 361 MB) | `apps.yml`: purge `libreoffice*` (decided: it goes from both images, see below) |
+| Not in the package list any more: Godot, Fritzing, the Android tools, IntelliJ IDEA, TIC-80, LibreSprite, Zulip, Collabora Office, LibreOffice | none of them, **except LibreOffice**: 39 packages, 642 MB (Writer, Calc, Impress, Draw, Math in the 13 languages), pulled in by `gnome` and the `task-<language>-desktop` packages | none of them, except LibreOffice (75 packages, 361 MB) | `apps.yml`: purge `libreoffice*` (decided: it goes from both images, see below) and Thunderbird |
 | apt: OpenSCAD, FreeCAD, GIMP, Inkscape, Krita, vim, Node.js, npm, Docker (with compose and buildx), uBlock Origin | all | only git, nano, VLC | `apps.yml`: `ADDITIONAL_PACKAGES` |
 | Flatpaks: Arduino IDE 2, VSCodium, Scratch, Processing, ungoogled Chromium, PrusaSlicer, Cura | all | none (only runtimes) | `apps.yml`: `ADDITIONAL_FLATPAKS` from Flathub |
 | Snapmaker Orca, Flatpak bundle, English locale | yes | the AppImage, English locale | `snapmaker-orca.yml` with `snapmaker_orca_package=flatpak` for `[mx]` |
@@ -187,10 +187,10 @@ Lenovo runs Ubuntu 26.04, set up with some playbooks, not the image.)
   install `gnome-core` and the wanted GNOME apps instead of `gnome`. On MX,
   nothing else needs LibreOffice. The text editors stay: GNOME Text Editor on
   the sticks, FeatherPad on MX.
-- **MX's own extras** that the sticks don't have (Thunderbird, Timeshift,
-  xfburn, asunder, luckybackup, conky, catfish, the desktop
-  launchers FAQ, Help and Quick System Info): kept or removed by `apps.yml`,
-  to be decided.
+- **MX's own extras** that the sticks don't have (decided 2026-10-14):
+  `apps.yml` purges Thunderbird. Timeshift, xfburn, asunder, luckybackup,
+  conky, catfish and the desktop launchers FAQ, Help and Quick System Info
+  stay.
 - **Not for the snapshot:** `tailscale.yml` and the Geteilter Ordner set up a
   machine's own identity; they stay for real machines (see "What must not get
   into the image").
