@@ -200,6 +200,22 @@ Lenovo runs Ubuntu 26.04, set up with some playbooks, not the image.)
   MacBook's Debian and MX again, then the performance measurements of
   `mx-learnings.md`, on the same machine.
 
+**Done on the MacBook's MX (2026-10-14).** `snapmaker-orca.yml` (Flatpak, the
+AppImage removed), `apps.yml`, `inkscape-extensions.yml`, `ssh-access.yml`,
+`xfce-panel.yml` and `default-apps.yml` ran, and a second run changes nothing.
+Compared with the MacBook's Debian: the same 8 Flatpaks, all of the sticks'
+apps in the menu except LibreOffice (on purpose) and three GNOME/Debian system
+entries (IBus setup, parental controls, Debian reference). Password logins over
+SSH are refused, Docker runs. 20 GB are left on MX's partition.
+
+- **MX installs no recommended packages** (Debian, and so the sticks, does).
+  `docker.io` only recommends `docker-cli`, the `docker` command, so it was
+  missing; it's in `apps_extra_packages` now. Other recommended packages may
+  be missing too; installing all of them on MX would also bring
+  `dbus-user-session`, which expects systemd user sessions.
+- Not tested yet on the desktop: starting the apps, Snapmaker Orca's Flatpak
+  on MX, and the favorites after the panel restart.
+
 ## Open questions
 
 Answered by the first try (step 2) and the master (step 3):

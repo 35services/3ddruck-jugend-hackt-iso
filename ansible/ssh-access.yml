@@ -1,0 +1,66 @@
+---
+# Sets up SSH like on the sticks: logins only with the keys in SSH_AUTHORIZED_KEYS
+# (../config or ../config.sample), no passwords, no root (data/sshd_config.conf).
+# On MX Linux, whose firewall (ufw) is on, it also allows SSH through it.
+#
+# Logins that already work with a key in ~/.ssh/authorized_keys keep working.
+#
+# Usage: ansible-playbook -i inventory.ini ssh-access.yml --limit macbook-one-mx-linux
+
+- name: Allow SSH with keys only
+  hosts: mx
+  become: true
+  vars:
+    config_file: >-
+      {{ playbook_dir ~ '/../config' if (playbook_dir ~ '/../config') is file
+         else playbook_dir ~ '/../config.sample' }}
+    # read on the controller
+    config_value: "{{ (playbook_dir ~ '/files/config-value.sh') | quote }} {{ config_file | quote }}"
+    config_keys: "{{ lookup('ansible.builtin.pipe', config_value ~ ' SSH_AUTHORIZED_KEYS') }}"
+
+  tasks:
+    - name: Install the SSH server
+      ansible.builtin.apt:
+        name: openssh-server
+        state: present
+
+    - name: Allow the keys from config
+      ansible.builtin.copy:
+        dest: /etc/ssh/jugendhackt_authorized_keys
+        content: "{{ config_keys }}\n"
+        mode: "0644"
+      notify: Restart the SSH server
+
+    - name: Allow only keys, like the sticks
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../data/sshd_config.conf"
+        dest: /etc/ssh/sshd_config.d/50-jugendhackt-iso.conf
+        mode: "0644"
+      notify: Restart the SSH server
+
+    - name: Check whether ufw is installed
+      ansible.builtin.command: which ufw
+      register: ufw
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Allow SSH through the firewall
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+      when: ufw.rc == 0
+
+  # in this order: a broken setting stops it before the restart
+  handlers:
+    - name: Check the SSH server's settings
+      ansible.builtin.command: sshd -t
+      changed_when: false
+      listen: Restart the SSH server
+
+    - name: Restart the SSH server now
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+      listen: Restart the SSH server

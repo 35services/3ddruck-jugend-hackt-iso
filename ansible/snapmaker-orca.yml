@@ -5,8 +5,10 @@
 #   flatpak   (default) the Flatpak bundle, like the image. Needs the GNOME
 #             runtime from Flathub (about 1.1 GB).
 #   appimage  the AppImage, unpacked to /opt/snapmaker-orca/app (about 360 MB),
-#             using the system's libraries. For MX Linux ([mx] in inventory.ini),
-#             see mx-learnings.md.
+#             using the system's libraries. Tried on MX Linux, see
+#             mx-learnings.md; MX now uses the Flatpak, like the sticks.
+#
+# Switching to the Flatpak removes the unpacked AppImage.
 #
 # Usage: ansible-playbook -i inventory.ini snapmaker-orca.yml --ask-become-pass
 #
@@ -84,6 +86,12 @@
               ansible.builtin.file:
                 path: "{{ snapmaker_orca_bundle }}"
                 state: absent
+
+        # switched from the AppImage: only one Orca, both use the same menu entry
+        - name: Remove the unpacked AppImage
+          ansible.builtin.file:
+            path: "{{ snapmaker_orca_dir }}"
+            state: absent
 
     - name: Install Snapmaker Orca from the AppImage
       when: orca_package == 'appimage'
