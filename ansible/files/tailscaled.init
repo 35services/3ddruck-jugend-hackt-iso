@@ -24,14 +24,15 @@ case "$1" in
   start)
     log_daemon_msg "Starting Tailscale" tailscaled
     mkdir -p /var/lib/tailscale /run/tailscale
-    start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$PIDFILE" \
+    start-stop-daemon --start --quiet --oknodo --background --make-pidfile --pidfile "$PIDFILE" \
       --exec "$DAEMON" -- --state=/var/lib/tailscale/tailscaled.state \
       --socket=/run/tailscale/tailscaled.sock --port="$PORT" $FLAGS
     log_end_msg $?
     ;;
   stop)
     log_daemon_msg "Stopping Tailscale" tailscaled
-    start-stop-daemon --stop --quiet --pidfile "$PIDFILE" --retry 10 --remove-pidfile
+    # --oknodo: not running counts as stopped, so restarting also works the first time
+    start-stop-daemon --stop --quiet --oknodo --pidfile "$PIDFILE" --retry 10 --remove-pidfile
     status=$?
     "$DAEMON" --cleanup >/dev/null 2>&1
     log_end_msg $status

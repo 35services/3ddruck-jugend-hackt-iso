@@ -1,0 +1,75 @@
+---
+# Installs the apps of the image on a machine that wasn't built from it, e.g. MX
+# Linux ([mx] in inventory.ini), so it has the same apps as a stick: the APT
+# packages and Flatpaks from ../config (or ../config.sample), the same lists
+# jugendhackt-iso.sh uses. Also puts the user in the groups the sticks give it
+# (data/live.conf), e.g. docker and dialout (Arduino).
+#
+# Snapmaker Orca comes from snapmaker-orca.yml, the Inkscape extensions from
+# inkscape-extensions.yml. See MX_ISO.md, "The image's customizations as playbooks".
+#
+# Per host or group in inventory.ini, space-separated:
+#   apps_extra_packages  more APT packages, e.g. what GNOME brings on the sticks
+#   apps_remove          APT packages to purge, wildcards allowed (libreoffice*)
+#
+# Usage: ansible-playbook -i inventory.ini apps.yml --limit macbook-one-mx-linux
+#
+# The Flatpaks are several GB, the first run takes a while.
+
+- name: Install the image's apps
+  hosts: mx
+  become: true
+  vars:
+    config_file: >-
+      {{ playbook_dir ~ '/../config' if (playbook_dir ~ '/../config') is file
+         else playbook_dir ~ '/../config.sample' }}
+    # read on the controller
+    config_value: "{{ (playbook_dir ~ '/files/config-value.sh') | quote }} {{ config_file | quote }}"
+    config_packages: "{{ lookup('ansible.builtin.pipe', config_value ~ ' ADDITIONAL_PACKAGES') }}"
+    config_flatpaks: "{{ lookup('ansible.builtin.pipe', config_value ~ ' ADDITIONAL_FLATPAKS') }}"
+    config_debconf: "{{ lookup('ansible.builtin.pipe', config_value ~ ' DEBCONF_SELECTIONS') }}"
+    live_groups: >-
+      {{ lookup('ansible.builtin.ini', 'LIVE_USER_DEFAULT_GROUPS', file=playbook_dir ~ '/../data/live.conf',
+                type='properties') | regex_replace('^["\']?(.*?)["\']?$', '\1') }}
+    packages: "{{ config_packages.split() + (apps_extra_packages | default('')).split() }}"
+    remove: "{{ (apps_remove | default('')).split() }}"
+
+  tasks:
+    - name: Answer the packages' questions like the image does
+      ansible.builtin.shell: echo {{ item | quote }} | debconf-set-selections
+      loop: "{{ config_debconf.splitlines() | select }}"
+      changed_when: false
+
+    - name: Install the APT packages
+      ansible.builtin.apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: true
+
+    - name: Remove the apps the image doesn't have
+      ansible.builtin.apt:
+        name: "{{ remove }}"
+        state: absent
+        purge: true
+      when: remove | length > 0
+
+    - name: Add the Flathub remote
+      ansible.builtin.command: flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      changed_when: false
+
+    - name: Install the Flatpaks
+      ansible.builtin.command: flatpak install --system --noninteractive -y flathub {{ item }}
+      args:
+        creates: /var/lib/flatpak/app/{{ item }}
+      loop: "{{ config_flatpaks.split() }}"
+
+    - name: Find the groups that exist
+      ansible.builtin.getent:
+        database: group
+
+    # like live-config on the sticks, which skips groups that don't exist
+    - name: Put the user in the groups the sticks give it
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: "{{ live_groups.split(',') | select('in', ansible_facts.getent_group) | list }}"
+        append: true

@@ -1,0 +1,47 @@
+---
+# Installs the Inkscape extensions of the image (INKSCAPE_EXTENSION_ZIPS in
+# ../config or ../config.sample, by default the AxiDraw extension) into the
+# user's Inkscape extensions folder, like jugendhackt-iso.sh does in /etc/skel.
+# Needs Inkscape, e.g. from apps.yml.
+#
+# An extension is installed once per archive name; for a new version, the URL in
+# config changes and so does the name.
+#
+# Usage: ansible-playbook -i inventory.ini inkscape-extensions.yml --limit macbook-one-mx-linux
+
+- name: Install the Inkscape extensions
+  hosts: mx
+  become: false
+  vars:
+    config_file: >-
+      {{ playbook_dir ~ '/../config' if (playbook_dir ~ '/../config') is file
+         else playbook_dir ~ '/../config.sample' }}
+    # read on the controller
+    config_value: "{{ (playbook_dir ~ '/files/config-value.sh') | quote }} {{ config_file | quote }}"
+    config_extensions: "{{ lookup('ansible.builtin.pipe', config_value ~ ' INKSCAPE_EXTENSION_ZIPS') }}"
+    extensions_dir: ~/.config/inkscape/extensions
+
+  tasks:
+    - name: Make sure the extensions folder exists
+      ansible.builtin.file:
+        path: "{{ extensions_dir }}"
+        state: directory
+        mode: "0755"
+
+    # the same steps as jugendhackt-iso.sh: copy the contents of a single
+    # top-level folder, not the folder itself
+    - name: Install the extensions
+      ansible.builtin.shell: |
+        set -e
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
+        curl -fsSL -o "$tmp/extension.zip" {{ item | quote }}
+        unzip -q "$tmp/extension.zip" -d "$tmp/extracted"
+        source="$tmp/extracted"
+        set -- "$source"/*
+        if [ $# -eq 1 ] && [ -d "$1" ]; then source="$1"; fi
+        cp -r "$source"/. {{ extensions_dir }}/
+        touch {{ extensions_dir }}/.installed-{{ item | basename | quote }}
+      args:
+        creates: "{{ extensions_dir }}/.installed-{{ item | basename }}"
+      loop: "{{ config_extensions.split() }}"

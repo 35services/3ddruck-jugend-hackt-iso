@@ -1,0 +1,96 @@
+---
+# Saves and applies the favorite apps of Xfce's panel (MX Linux): the favorites
+# of the app menu (Whisker menu) and the apps pinned to the dock (docklike).
+# The counterpart of gnome-dash.yml. Apps that aren't installed are left out.
+#
+# Save the favorites of one computer to files/xfce-favorites.json:
+#   ansible-playbook -i inventory.ini xfce-panel.yml --tags save --limit macbook-one-mx-linux
+#
+# Apply the saved favorites:
+#   ansible-playbook -i inventory.ini xfce-panel.yml --limit macbook-one-mx-linux
+#
+# The user must be logged in to the desktop, since the menu is changed through
+# the running session. The dock reads its pinned apps only when the panel
+# starts, so the panel restarts when they change.
+
+- name: Save and apply the Xfce panel's favorites
+  hosts: mx
+  become: false
+  vars:
+    favorites_file: "{{ playbook_dir }}/files/xfce-favorites.json"
+    # finds the running panel and takes its session's D-Bus address and display
+    session_env: |
+      pid=$(pgrep -u "$(id -u)" -x xfce4-panel | head -n 1)
+      if [ -z "$pid" ]; then echo "no Xfce panel running" >&2; exit 1; fi
+      export $(tr '\0' '\n' < /proc/$pid/environ | grep -E '^(DBUS_SESSION_BUS_ADDRESS|DISPLAY)=')
+
+  tasks:
+    - name: Read the favorites
+      ansible.builtin.shell: |
+        {{ session_env }}
+        for plugin in $(xfconf-query -c xfce4-panel -p /plugins -l -v | awk '$2 == "whiskermenu" {print $1}'); do
+          xfconf-query -c xfce4-panel -p "$plugin/favorites" | tail -n +3 | sed 's/^/menu /'
+          break
+        done
+        for rc in "$HOME"/.config/xfce4/panel/docklike-*.rc; do
+          [ -f "$rc" ] || continue
+          sed -n 's/^pinned=//p' "$rc" | tr ';' '\n' | grep . | sed 's/^\(.*\)$/dock \1.desktop/'
+          break
+        done
+      register: current
+      changed_when: false
+      check_mode: false
+      tags: [always]
+
+    - name: Save the favorites to {{ favorites_file }}
+      delegate_to: localhost
+      run_once: true
+      vars:
+        lines: "{{ current.stdout_lines | select | list }}"
+      ansible.builtin.copy:
+        content: >-
+          {{ {'menu': lines | select('match', '^menu ') | map('regex_replace', '^menu ', '') | list,
+              'dock': lines | select('match', '^dock ') | map('regex_replace', '^dock ', '') | list}
+             | to_nice_json }}{{ '\n' }}
+        dest: "{{ favorites_file }}"
+        mode: "0644"
+      tags: [never, save]
+
+    - name: Apply the saved favorites
+      vars:
+        favorites: "{{ lookup('ansible.builtin.file', favorites_file) | from_json }}"
+      ansible.builtin.shell: |
+        {{ session_env }}
+        installed() {
+          for dir in "$HOME/.local/share/applications" /usr/local/share/applications \
+                     /usr/share/applications /var/lib/flatpak/exports/share/applications; do
+            [ -e "$dir/$1" ] && return 0
+          done
+          return 1
+        }
+        menu=
+        for app in {{ favorites.menu | map('quote') | join(' ') }}; do
+          installed "$app" && menu="$menu $app"
+        done
+        dock=
+        for app in {{ favorites.dock | map('quote') | join(' ') }}; do
+          installed "$app" && dock="$dock${app%.desktop};"
+        done
+        for plugin in $(xfconf-query -c xfce4-panel -p /plugins -l -v | awk '$2 == "whiskermenu" {print $1}'); do
+          [ "$(xfconf-query -c xfce4-panel -p "$plugin/favorites" | tail -n +3 | xargs)" = "$(echo $menu)" ] && continue
+          set --
+          for app in $menu; do set -- "$@" -t string -s "$app"; done
+          xfconf-query -c xfce4-panel -p "$plugin/favorites" --create --force-array "$@"
+          echo "changed: $plugin"
+        done
+        restart_panel=
+        for rc in "$HOME"/.config/xfce4/panel/docklike-*.rc; do
+          [ -f "$rc" ] || continue
+          grep -qx "pinned=$dock" "$rc" && continue
+          sed -i "s/^pinned=.*$/pinned=$dock/" "$rc"
+          echo "changed: $rc"
+          restart_panel=yes
+        done
+        if [ -n "$restart_panel" ]; then xfce4-panel -r; fi
+      register: applied
+      changed_when: "'changed:' in applied.stdout"
