@@ -144,9 +144,65 @@ snapshot has the same layout.
 | Test | QEMU, expect logs in on the serial console as `druck` | try it on the master before the snapshot; boot the ISO in QEMU (UEFI, BIOS) |
 | Build machine | Docker on the Lenovo, `build-and-flash.sh` | a VM on the Lenovo (KVM), a new script driving it over SSH |
 
+## The image's customizations as playbooks
+
+Before a snapshot, the MacBook's MX gets everything the sticks have, through
+playbooks only, so it can be compared with a stick. The same playbooks then
+set up the master VM.
+
+**The reference is the MacBook's own Debian** (`nvme0n1p3`): a stick's system
+copied to the disk, so both run on the same hardware. Checked on 2026-10-14,
+read from MX with the partition mounted read-only. (Inkscape, OpenSCAD and
+FreeCAD were only installed in MX's live system during the experiment. The
+Lenovo runs Ubuntu 26.04, set up with some playbooks, not the image.)
+
+| What the sticks have | The stick's system (MacBook's Debian) | The MacBook's MX | Playbook |
+|---|---|---|---|
+| Not in the package list any more: Godot, Fritzing, the Android tools, IntelliJ IDEA, TIC-80, LibreSprite, Zulip, Collabora Office, LibreOffice | none of them, **except LibreOffice**: 39 packages, 642 MB (Writer, Calc, Impress, Draw, Math in the 13 languages), pulled in by `gnome` and the `task-<language>-desktop` packages | none of them, except LibreOffice (75 packages, 361 MB) | `apps.yml`: purge `libreoffice*` (decided: it goes from both images, see below) |
+| apt: OpenSCAD, FreeCAD, GIMP, Inkscape, Krita, vim, Node.js, npm, Docker (with compose and buildx), uBlock Origin | all | only git, nano, VLC | `apps.yml`: `ADDITIONAL_PACKAGES` |
+| Flatpaks: Arduino IDE 2, VSCodium, Scratch, Processing, ungoogled Chromium, PrusaSlicer, Cura | all | none (only runtimes) | `apps.yml`: `ADDITIONAL_FLATPAKS` from Flathub |
+| Snapmaker Orca, Flatpak bundle, English locale | yes | the AppImage, English locale | `snapmaker-orca.yml` with `snapmaker_orca_package=flatpak` for `[mx]` |
+| AxiDraw extension for Inkscape | in `/etc/skel` and `druck`'s home | missing | `inkscape-extensions.yml`: `INKSCAPE_EXTENSION_ZIPS` |
+| Desktop files, Snapmaker and MakerWorld logins | yes | yes | `desktop-files.yml` (unchanged) |
+| `version.txt` on the desktop | on the sticks | missing | later, for the snapshot: `desktop-files.yml` writes it |
+| SSH with keys only (`50-jugendhackt-iso.conf`) | yes | key there, passwords still allowed | `ssh-access.yml`, plus `ufw allow 22/tcp` |
+| `druck` in the groups of `data/live.conf` | `docker`, `dialout`, `operator`, `lpadmin`, … | not in `docker`, `operator` | `apps.yml`, after installing Docker |
+| German spell checking, `task-german-desktop`, Noto color emoji | yes | German locale, without these | `apps.yml`: `hunspell-de-de`, `fonts-noto-color-emoji` |
+| GNOME Software with Flatpak, `fwupd` | yes | MX has its own package installer | none |
+| A text editor (the `.txt` files on the desktop) | `gnome-text-editor`, vim, nano | FeatherPad (default for `text/plain`), nano | none: each keeps its own; vim comes with `ADDITIONAL_PACKAGES` |
+| Orca opens STL files, zsh | yes (Ansible) | yes | `default-apps.yml`, `oh-my-zsh.yml` (unchanged) |
+| GNOME: Dash favorites (`gnome-dash.yml`), desktop icons (`90-jugendhackt-iso.gschema.override`) | yes | Whisker and dock favorites set by hand | `xfce-panel.yml`, like `gnome-dash.yml` |
+
+- **One list for both images.** The playbooks read the lists from `config`
+  (or `config.sample`) on the controller, the same variables
+  `jugendhackt-iso.sh` uses, so a package added there reaches both images.
+  MX-only additions (`gstreamer1.0-x`) are variables of the `[mx]` group.
+- **LibreOffice goes, a text editor stays** (decided 2026-10-14). The AG
+  took LibreOffice out of `ADDITIONAL_PACKAGES`, but the sticks still have
+  it: GNOME's metapackage `gnome` *depends* on it, the language tasks
+  recommend it. So the Debian image needs a fix too, an image change for
+  `CHANGELOG.md`: `PACKAGE_REMOVAL="libreoffice*"` alone would also remove
+  `gnome`, and the build's `apt autoremove` then most of GNOME's apps. Either
+  mark GNOME's other dependencies as installed manually before the purge, or
+  install `gnome-core` and the wanted GNOME apps instead of `gnome`. On MX,
+  nothing else needs LibreOffice. The text editors stay: GNOME Text Editor on
+  the sticks, FeatherPad on MX.
+- **MX's own extras** that the sticks don't have (Thunderbird, Timeshift,
+  xfburn, asunder, luckybackup, conky, catfish, the desktop
+  launchers FAQ, Help and Quick System Info): kept or removed by `apps.yml`,
+  to be decided.
+- **Not for the snapshot:** `tailscale.yml` and the Geteilter Ordner set up a
+  machine's own identity; they stay for real machines (see "What must not get
+  into the image").
+- **Space:** the Flatpaks and packages need ~8–10 GB; the MacBook's MX has
+  32 GB free.
+- **Comparing:** afterwards, compare the package and Flatpak lists of the
+  MacBook's Debian and MX again, then the performance measurements of
+  `mx-learnings.md`, on the same machine.
+
 ## Open questions
 
-Answered by the first try (step 1) and the master (step 2):
+Answered by the first try (step 2) and the master (step 3):
 
 1. **The live user.** Does a personal snapshot boot straight into `druck`'s
    desktop (autologin, home folder from the snapshot), and does
@@ -167,16 +223,17 @@ Answered by the first try (step 1) and the master (step 2):
 
 0. Merge the MX branch's remaining commits (`mx-learnings.md`, Snapmaker
    Orca's AppImage, `tailscaled` on sysvinit) together with this plan.
-1. **First try on the MacBook's MX:** `mx-snapshot --cli` in personal mode,
-   with the exclude list above and zstd, to `/home/snapshot` (~13 GB of system,
-   a 5–6 GB ISO, 32 GB free). Copy the ISO to the Lenovo, boot it in QEMU.
-   Answers questions 1, 3 and 5.
-2. **The master VM on the Lenovo:** install MX from the pinned ISO (disk
+1. **A comparable MacBook:** write the playbooks of "The image's
+   customizations as playbooks", run them on the MacBook's MX, compare it
+   with its Debian.
+2. **First try on the MacBook's MX:** `mx-snapshot --cli` in personal mode,
+   with the exclude list above and zstd, to `/home/snapshot` (a 6–8 GB ISO
+   with the apps). Copy the ISO to the Lenovo, boot it in QEMU. Answers
+   questions 1, 3 and 5.
+3. **The master VM on the Lenovo:** install MX from the pinned ISO (disk
    ~60 GB), user `druck` / `live`, systemd; keep the bare installation as a
-   VM disk snapshot.
-3. **Playbooks for what the image contains**, row by row in the table above:
-   apt packages, Flatpaks, Inkscape extensions, SSH keys, logins and
-   `version.txt` from `secrets`. A group `[mx_master]` in the inventory.
+   VM disk snapshot. A group `[mx_master]` in the inventory gets the
+   playbooks of step 1, plus `version.txt`.
 4. **A script** that resets the VM, starts it, runs the playbooks, runs
    `mx-snapshot` and copies the ISO to `cache/`, named after `.iso-name` (its
    own for MX, `jugendhackt-3d-druck-mx-iso`) and the version.
